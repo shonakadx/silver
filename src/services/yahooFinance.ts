@@ -1,6 +1,7 @@
 // Yahoo Finance Chart APIを使用（より確実に動作）
 // CORSプロキシを使用してブラウザからアクセス可能にする
-const CORS_PROXY = 'https://thingproxy.freeboard.io/fetch/';
+// corsproxy.io を使用
+const CORS_PROXY = 'https://corsproxy.io/?';
 const YAHOO_CHART_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
 export interface YahooQuote {
@@ -63,9 +64,11 @@ export const INDEX_SYMBOLS: Record<string, string> = {
 async function fetchQuoteFromChart(yahooSymbol: string): Promise<YahooQuote | null> {
   try {
     const yahooUrl = `${YAHOO_CHART_BASE}/${yahooSymbol}?range=1d&interval=1d`;
+    // corsproxy.ioはURLをそのまま追加（エンコードなし）
     const url = CORS_PROXY + yahooUrl;
 
     console.log(`[Yahoo] Fetching: ${yahooSymbol}`);
+    console.log(`[Yahoo] Full URL: ${url}`);
     const response = await fetch(url);
     console.log(`[Yahoo] Response status for ${yahooSymbol}: ${response.status}`);
 
