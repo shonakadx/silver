@@ -65,14 +65,22 @@ async function fetchQuoteFromChart(yahooSymbol: string): Promise<YahooQuote | nu
     const yahooUrl = `${YAHOO_CHART_BASE}/${yahooSymbol}?range=1d&interval=1d`;
     const url = CORS_PROXY + yahooUrl;
 
+    console.log(`[Yahoo] Fetching: ${yahooSymbol}`);
     const response = await fetch(url);
+    console.log(`[Yahoo] Response status for ${yahooSymbol}: ${response.status}`);
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
     const data = await response.json();
+    console.log(`[Yahoo] Data for ${yahooSymbol}:`, data);
+
     const result = data.chart?.result?.[0];
-    if (!result) return null;
+    if (!result) {
+      console.warn(`[Yahoo] No result in data for ${yahooSymbol}`);
+      return null;
+    }
 
     const meta = result.meta;
     const quote = result.indicators?.quote?.[0];
@@ -103,14 +111,19 @@ async function fetchQuoteFromChart(yahooSymbol: string): Promise<YahooQuote | nu
 }
 
 export async function fetchQuotes(symbols: string[]): Promise<YahooQuote[]> {
+  console.log(`[Yahoo] Fetching ${symbols.length} symbols:`, symbols);
+
   const results = await Promise.allSettled(
     symbols.map(s => fetchQuoteFromChart(s))
   );
 
-  return results
+  const quotes = results
     .filter((r): r is PromiseFulfilledResult<YahooQuote | null> => r.status === 'fulfilled')
     .map(r => r.value)
     .filter((q): q is YahooQuote => q !== null);
+
+  console.log(`[Yahoo] Successfully fetched ${quotes.length}/${symbols.length} quotes`);
+  return quotes;
 }
 
 export async function fetchChart(
