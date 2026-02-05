@@ -1,6 +1,6 @@
 // Yahoo Finance Chart APIを使用（より確実に動作）
 // CORSプロキシを使用してブラウザからアクセス可能にする
-const CORS_PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
+const CORS_PROXY = 'https://thingproxy.freeboard.io/fetch/';
 const YAHOO_CHART_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
 export interface YahooQuote {
@@ -63,7 +63,7 @@ export const INDEX_SYMBOLS: Record<string, string> = {
 async function fetchQuoteFromChart(yahooSymbol: string): Promise<YahooQuote | null> {
   try {
     const yahooUrl = `${YAHOO_CHART_BASE}/${yahooSymbol}?range=1d&interval=1d`;
-    const url = CORS_PROXY + encodeURIComponent(yahooUrl);
+    const url = CORS_PROXY + yahooUrl;
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -121,7 +121,7 @@ export async function fetchChart(
   try {
     const yahooSymbol = JP_SYMBOLS[symbol] || INDEX_SYMBOLS[symbol] || symbol;
     const yahooUrl = `${YAHOO_CHART_BASE}/${yahooSymbol}?range=${range}&interval=${interval}`;
-    const url = CORS_PROXY + encodeURIComponent(yahooUrl);
+    const url = CORS_PROXY + yahooUrl;
 
     const response = await fetch(url);
     if (!response.ok) {
