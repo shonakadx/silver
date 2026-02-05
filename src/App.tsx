@@ -13,13 +13,18 @@ type Page = 'dashboard' | 'chart' | 'portfolio' | 'watchlist' | 'news' | 'analys
 
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
-  const simulateUpdate = useMarketStore(state => state.simulateUpdate);
+  const { simulateUpdate, fetchRealData, isLoading, lastUpdated } = useMarketStore();
 
-  // Simulate real-time market data updates
+  // 初回データ取得
+  useEffect(() => {
+    fetchRealData();
+  }, []);
+
+  // 定期的にデータを更新（30秒間隔）
   useEffect(() => {
     const interval = setInterval(() => {
       simulateUpdate();
-    }, 3000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [simulateUpdate]);
 
