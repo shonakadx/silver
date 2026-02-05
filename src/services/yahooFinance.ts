@@ -1,10 +1,6 @@
 // Yahoo Finance Chart APIを使用（より確実に動作）
 // CORSプロキシを使用してブラウザからアクセス可能にする
-const CORS_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.org/?',
-];
-let currentProxyIndex = 0;
+const CORS_PROXY = 'https://thingproxy.freeboard.io/fetch/';
 const YAHOO_CHART_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
 export interface YahooQuote {
@@ -63,42 +59,19 @@ export const INDEX_SYMBOLS: Record<string, string> = {
   'BTCUSD': 'BTC-USD',  // ビットコイン
 };
 
-// 複数のプロキシを試す
-async function fetchWithProxy(yahooUrl: string): Promise<Response> {
-  let lastError: Error | null = null;
-
-  for (let i = 0; i < CORS_PROXIES.length; i++) {
-    const proxyIndex = (currentProxyIndex + i) % CORS_PROXIES.length;
-    const proxy = CORS_PROXIES[proxyIndex];
-    const url = proxy + encodeURIComponent(yahooUrl);
-
-    try {
-      console.log(`[Yahoo] Trying proxy ${proxyIndex + 1}/${CORS_PROXIES.length}: ${proxy.substring(0, 30)}...`);
-      const response = await fetch(url);
-
-      if (response.ok) {
-        // 成功したプロキシを記憶
-        currentProxyIndex = proxyIndex;
-        return response;
-      }
-      lastError = new Error(`HTTP ${response.status}`);
-    } catch (error) {
-      lastError = error as Error;
-      console.warn(`[Yahoo] Proxy ${proxyIndex + 1} failed:`, error);
-    }
-  }
-
-  throw lastError || new Error('All proxies failed');
-}
-
 // Chart APIからquoteデータを取得
 async function fetchQuoteFromChart(yahooSymbol: string): Promise<YahooQuote | null> {
   try {
     const yahooUrl = `${YAHOO_CHART_BASE}/${yahooSymbol}?range=1d&interval=1d`;
+    const url = CORS_PROXY + yahooUrl;
 
     console.log(`[Yahoo] Fetching: ${yahooSymbol}`);
-    const response = await fetchWithProxy(yahooUrl);
+    const response = await fetch(url);
     console.log(`[Yahoo] Response status for ${yahooSymbol}: ${response.status}`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
 
     const data = await response.json();
     console.log(`[Yahoo] Data for ${yahooSymbol}:`, data);
@@ -161,8 +134,12 @@ export async function fetchChart(
   try {
     const yahooSymbol = JP_SYMBOLS[symbol] || INDEX_SYMBOLS[symbol] || symbol;
     const yahooUrl = `${YAHOO_CHART_BASE}/${yahooSymbol}?range=${range}&interval=${interval}`;
+    const url = CORS_PROXY + yahooUrl;
 
-    const response = await fetchWithProxy(yahooUrl);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
 
     const data = await response.json();
     const result = data.chart?.result?.[0];
