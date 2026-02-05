@@ -62,9 +62,10 @@ export interface NewsItem {
   summary: string;
   source: string;
   timestamp: string;
-  category: 'market' | 'economy' | 'company' | 'crypto' | 'forex';
+  category: 'market' | 'economy' | 'company' | 'crypto' | 'forex' | string;
   symbols?: string[];
   sentiment: 'positive' | 'negative' | 'neutral';
+  url?: string;
 }
 
 export interface WatchlistItem {
