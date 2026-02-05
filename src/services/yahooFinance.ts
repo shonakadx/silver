@@ -1,11 +1,7 @@
-// 複数のCORSプロキシを試行
-const CORS_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.io/?',
-  'https://proxy.cors.sh/',
-];
-const YAHOO_BASE = 'https://query1.finance.yahoo.com';
-let currentProxyIndex = 0;
+// Yahoo Finance Chart APIを使用（より確実に動作）
+// CORSプロキシを使用してブラウザからアクセス可能にする
+const CORS_PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
+const YAHOO_CHART_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart';
 
 export interface YahooQuote {
   symbol: string;
@@ -53,7 +49,6 @@ export const JP_SYMBOLS: Record<string, string> = {
 // 指数シンボル
 export const INDEX_SYMBOLS: Record<string, string> = {
   'N225': '^N225',      // 日経平均
-  'TOPIX': '^TOPX',     // TOPIX (might not work)
   'SPX': '^GSPC',       // S&P 500
   'DJI': '^DJI',        // NYダウ
   'IXIC': '^IXIC',      // NASDAQ
@@ -64,61 +59,58 @@ export const INDEX_SYMBOLS: Record<string, string> = {
   'BTCUSD': 'BTC-USD',  // ビットコイン
 };
 
-async function fetchWithProxy(url: string): Promise<Response> {
-  // 複数のプロキシを順番に試す
-  for (let i = 0; i < CORS_PROXIES.length; i++) {
-    const proxyIndex = (currentProxyIndex + i) % CORS_PROXIES.length;
-    const proxy = CORS_PROXIES[proxyIndex];
-    const proxyUrl = proxy + encodeURIComponent(url);
+// Chart APIからquoteデータを取得
+async function fetchQuoteFromChart(yahooSymbol: string): Promise<YahooQuote | null> {
+  try {
+    const yahooUrl = `${YAHOO_CHART_BASE}/${yahooSymbol}?range=1d&interval=1d`;
+    const url = CORS_PROXY + encodeURIComponent(yahooUrl);
 
-    try {
-      const response = await fetch(proxyUrl, {
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-      if (response.ok) {
-        currentProxyIndex = proxyIndex; // 成功したプロキシを記憶
-        return response;
-      }
-    } catch (e) {
-      console.warn(`Proxy ${proxy} failed, trying next...`);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
+
+    const data = await response.json();
+    const result = data.chart?.result?.[0];
+    if (!result) return null;
+
+    const meta = result.meta;
+    const quote = result.indicators?.quote?.[0];
+
+    const currentPrice = meta.regularMarketPrice || meta.previousClose || 0;
+    const previousClose = meta.chartPreviousClose || meta.previousClose || currentPrice;
+    const change = currentPrice - previousClose;
+    const changePercent = previousClose > 0 ? (change / previousClose) * 100 : 0;
+
+    return {
+      symbol: yahooSymbol,
+      shortName: meta.shortName || meta.symbol || yahooSymbol,
+      longName: meta.longName,
+      regularMarketPrice: currentPrice,
+      regularMarketChange: change,
+      regularMarketChangePercent: changePercent,
+      regularMarketVolume: meta.regularMarketVolume || (quote?.volume?.[0] || 0),
+      marketCap: undefined,
+      regularMarketDayHigh: meta.regularMarketDayHigh || (quote?.high?.[0] || currentPrice),
+      regularMarketDayLow: meta.regularMarketDayLow || (quote?.low?.[0] || currentPrice),
+      regularMarketOpen: meta.regularMarketOpen || (quote?.open?.[0] || currentPrice),
+      regularMarketPreviousClose: previousClose,
+    };
+  } catch (error) {
+    console.warn(`Failed to fetch ${yahooSymbol}:`, error);
+    return null;
   }
-  throw new Error('All proxies failed');
 }
 
 export async function fetchQuotes(symbols: string[]): Promise<YahooQuote[]> {
-  try {
-    const yahooSymbols = symbols.map(s => JP_SYMBOLS[s] || INDEX_SYMBOLS[s] || s);
-    const url = `${YAHOO_BASE}/v7/finance/quote?symbols=${yahooSymbols.join(',')}`;
+  const results = await Promise.allSettled(
+    symbols.map(s => fetchQuoteFromChart(s))
+  );
 
-    const response = await fetchWithProxy(url);
-    const data = await response.json();
-
-    if (!data.quoteResponse?.result) {
-      console.warn('No quote data received');
-      return [];
-    }
-
-    return data.quoteResponse.result.map((q: any) => ({
-      symbol: q.symbol,
-      shortName: q.shortName || q.symbol,
-      longName: q.longName,
-      regularMarketPrice: q.regularMarketPrice || 0,
-      regularMarketChange: q.regularMarketChange || 0,
-      regularMarketChangePercent: q.regularMarketChangePercent || 0,
-      regularMarketVolume: q.regularMarketVolume || 0,
-      marketCap: q.marketCap,
-      regularMarketDayHigh: q.regularMarketDayHigh || 0,
-      regularMarketDayLow: q.regularMarketDayLow || 0,
-      regularMarketOpen: q.regularMarketOpen || 0,
-      regularMarketPreviousClose: q.regularMarketPreviousClose || 0,
-    }));
-  } catch (error) {
-    console.error('Failed to fetch quotes:', error);
-    return [];
-  }
+  return results
+    .filter((r): r is PromiseFulfilledResult<YahooQuote | null> => r.status === 'fulfilled')
+    .map(r => r.value)
+    .filter((q): q is YahooQuote => q !== null);
 }
 
 export async function fetchChart(
@@ -128,11 +120,15 @@ export async function fetchChart(
 ): Promise<YahooChartData | null> {
   try {
     const yahooSymbol = JP_SYMBOLS[symbol] || INDEX_SYMBOLS[symbol] || symbol;
-    const url = `${YAHOO_BASE}/v8/finance/chart/${yahooSymbol}?range=${range}&interval=${interval}`;
+    const yahooUrl = `${YAHOO_CHART_BASE}/${yahooSymbol}?range=${range}&interval=${interval}`;
+    const url = CORS_PROXY + encodeURIComponent(yahooUrl);
 
-    const response = await fetchWithProxy(url);
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
     const data = await response.json();
-
     const result = data.chart?.result?.[0];
     if (!result) {
       console.warn('No chart data received');
