@@ -1,5 +1,11 @@
-const CORS_PROXY = 'https://corsproxy.io/?';
+// 複数のCORSプロキシを試行
+const CORS_PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.io/?',
+  'https://proxy.cors.sh/',
+];
 const YAHOO_BASE = 'https://query1.finance.yahoo.com';
+let currentProxyIndex = 0;
 
 export interface YahooQuote {
   symbol: string;
@@ -59,12 +65,27 @@ export const INDEX_SYMBOLS: Record<string, string> = {
 };
 
 async function fetchWithProxy(url: string): Promise<Response> {
-  const proxyUrl = CORS_PROXY + encodeURIComponent(url);
-  const response = await fetch(proxyUrl);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+  // 複数のプロキシを順番に試す
+  for (let i = 0; i < CORS_PROXIES.length; i++) {
+    const proxyIndex = (currentProxyIndex + i) % CORS_PROXIES.length;
+    const proxy = CORS_PROXIES[proxyIndex];
+    const proxyUrl = proxy + encodeURIComponent(url);
+
+    try {
+      const response = await fetch(proxyUrl, {
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+      if (response.ok) {
+        currentProxyIndex = proxyIndex; // 成功したプロキシを記憶
+        return response;
+      }
+    } catch (e) {
+      console.warn(`Proxy ${proxy} failed, trying next...`);
+    }
   }
-  return response;
+  throw new Error('All proxies failed');
 }
 
 export async function fetchQuotes(symbols: string[]): Promise<YahooQuote[]> {
