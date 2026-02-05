@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMarketStore } from '../../store/useMarketStore';
 
 export function Header() {
-  const { searchQuery, setSearchQuery } = useMarketStore();
+  const { searchQuery, setSearchQuery, useRealData, isLoading, lastUpdated } = useMarketStore();
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -36,9 +36,24 @@ export function Header() {
       </div>
 
       <div className="header-time">
-        <span className="market-status">
-          <span className="dot" />
-          MARKET OPEN
+        <span
+          className="market-status"
+          style={{
+            background: isLoading
+              ? 'rgba(245, 158, 11, 0.1)'
+              : useRealData
+              ? 'rgba(16, 185, 129, 0.1)'
+              : 'rgba(239, 68, 68, 0.1)',
+            color: isLoading ? '#f59e0b' : useRealData ? '#10b981' : '#ef4444',
+          }}
+        >
+          <span
+            className="dot"
+            style={{
+              background: isLoading ? '#f59e0b' : useRealData ? '#10b981' : '#ef4444',
+            }}
+          />
+          {isLoading ? 'LOADING...' : useRealData ? 'LIVE DATA' : 'DEMO DATA'}
         </span>
         <span>{formatDate(time)}</span>
         <span style={{ fontWeight: 600 }}>{formatTime(time)}</span>
