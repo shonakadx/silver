@@ -124,7 +124,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   searchQuery: '',
   isLoading: false,
   lastUpdated: null,
-  useRealData: true,
+  useRealData: false, // 初期値はfalse、実データ取得成功時にtrueになる
 
   setSelectedSymbol: (symbol: string) => {
     set({ selectedSymbol: symbol });
