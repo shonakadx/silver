@@ -4,7 +4,7 @@ import { NewsItem } from '../types/market';
 // rss2json.com API
 const RSS2JSON_API = 'https://api.rss2json.com/v1/api.json';
 
-// ニュースフィード（暗号資産・経済・企業・株式）
+// ニュースフィード（暗号資産・経済・企業・イノベーション）
 const NEWS_FEEDS = [
   // 暗号資産
   { url: 'https://cointelegraph.com/rss', name: 'Cointelegraph', category: 'crypto' },
@@ -20,6 +20,12 @@ const NEWS_FEEDS = [
   { url: 'https://toyokeizai.net/list/feed/rss', name: '東洋経済', category: 'company' },
   { url: 'https://diamond.jp/list/feed/rss', name: 'ダイヤモンド', category: 'company' },
   { url: 'https://www.itmedia.co.jp/rss/2.0/business.xml', name: 'ITmedia ビジネス', category: 'company' },
+  // イノベーション・テクノロジー
+  { url: 'https://wired.jp/feed/', name: 'WIRED Japan', category: 'innovation' },
+  { url: 'https://www.technologyreview.jp/feed/', name: 'MIT Tech Review JP', category: 'innovation' },
+  { url: 'https://thebridge.jp/feed', name: 'THE BRIDGE', category: 'innovation' },
+  { url: 'https://www.itmedia.co.jp/rss/2.0/news.xml', name: 'ITmedia NEWS', category: 'innovation' },
+  { url: 'https://gigazine.net/news/rss_2.0/', name: 'GIGAZINE', category: 'innovation' },
 ];
 
 // センチメント判定
@@ -49,6 +55,13 @@ function detectDetailedCategory(title: string, defaultCategory: string): string 
   }
   if (text.includes('fed') || text.includes('gdp') || text.includes('inflation') || text.includes('日銀') || text.includes('金利') || text.includes('経済')) {
     return 'economy';
+  }
+  if (text.includes('ai') || text.includes('人工知能') || text.includes('機械学習') || text.includes('startup') || text.includes('スタートアップ') ||
+      text.includes('innovation') || text.includes('イノベーション') || text.includes('量子') || text.includes('quantum') ||
+      text.includes('ev') || text.includes('電気自動車') || text.includes('自動運転') || text.includes('ロボット') ||
+      text.includes('宇宙') || text.includes('space') || text.includes('5g') || text.includes('6g') || text.includes('メタバース') ||
+      text.includes('vr') || text.includes('ar') || text.includes('xr') || text.includes('web3') || text.includes('nft')) {
+    return 'innovation';
   }
 
   return defaultCategory;
