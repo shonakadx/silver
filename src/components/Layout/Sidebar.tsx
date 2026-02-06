@@ -1,6 +1,6 @@
-import { usePortfolioStore } from '../../store/usePortfolioStore';
-import { useMarketStore } from '../../store/useMarketStore';
+import { useState, useEffect } from 'react';
 import { PriceChange } from '../common/PriceChange';
+import { fetchCryptoPrices, CryptoPrice } from '../../services/cryptoService';
 
 interface SidebarProps {
   activePage: string;
@@ -17,8 +17,22 @@ const navItems = [
 ];
 
 export function Sidebar({ activePage, onNavigate }: SidebarProps) {
-  const { watchlist } = usePortfolioStore();
-  const { setSelectedSymbol } = useMarketStore();
+  const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await fetchCryptoPrices();
+        setCryptos(data);
+      } catch (err) {
+        console.error('[Sidebar] Failed to load cryptos:', err);
+      }
+    }
+    load();
+
+    const interval = setInterval(load, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <aside className="sidebar">
@@ -38,28 +52,30 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
 
       <div className="sidebar-section" style={{ flex: 1 }}>
         <div className="sidebar-section-title">クイックウォッチ</div>
-        {watchlist.slice(0, 8).map(item => (
+        {cryptos.slice(0, 8).map(crypto => (
           <div
-            key={item.symbol}
+            key={crypto.id}
             className="watchlist-item"
-            style={{ padding: '6px 16px' }}
-            onClick={() => {
-              setSelectedSymbol(item.symbol);
-              onNavigate('chart');
-            }}
+            style={{ padding: '6px 16px', cursor: 'pointer' }}
+            onClick={() => onNavigate('chart')}
           >
             <div className="wl-left">
-              <span className="wl-symbol" style={{ fontSize: '11px' }}>{item.symbol}</span>
-              <span className="wl-name" style={{ fontSize: '10px' }}>{item.name}</span>
+              <span className="wl-symbol" style={{ fontSize: '11px' }}>{crypto.symbol.toUpperCase()}</span>
+              <span className="wl-name" style={{ fontSize: '10px' }}>{crypto.name}</span>
             </div>
             <div className="wl-right">
               <div className="wl-price" style={{ fontSize: '11px' }}>
-                {item.price.toLocaleString()}
+                ¥{crypto.current_price.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </div>
-              <PriceChange value={item.change} size="sm" />
+              <PriceChange value={crypto.price_change_24h} percent={crypto.price_change_percentage_24h} size="sm" />
             </div>
           </div>
         ))}
+        {cryptos.length === 0 && (
+          <div style={{ padding: '16px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+            読み込み中...
+          </div>
+        )}
       </div>
     </aside>
   );
