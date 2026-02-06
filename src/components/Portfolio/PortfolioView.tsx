@@ -23,13 +23,7 @@ function loadPortfolio(): Holding[] {
     if (saved) {
       return JSON.parse(saved);
     }
-    // 初期ポートフォリオ（デモ用）
-    return [
-      { id: 'bitcoin', shares: 0.5, avgCost: 6000000 },
-      { id: 'ethereum', shares: 5, avgCost: 280000 },
-      { id: 'solana', shares: 50, avgCost: 15000 },
-      { id: 'ripple', shares: 10000, avgCost: 80 },
-    ];
+    return [];
   } catch {
     return [];
   }
