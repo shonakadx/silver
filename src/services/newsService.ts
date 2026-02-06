@@ -23,10 +23,12 @@ const NEWS_FEEDS = [
   { url: 'https://www.technologyreview.jp/feed/', name: 'MIT Tech Review JP', category: 'innovation' },
   { url: 'https://thebridge.jp/feed', name: 'THE BRIDGE', category: 'innovation' },
   { url: 'https://gigazine.net/news/rss_2.0/', name: 'GIGAZINE', category: 'innovation' },
-  // 半導体・SOX関連
+  // 半導体・SOX関連（専門メディア）
+  { url: 'https://www.digitimes.com/rss/daily.xml', name: 'DIGITIMES', category: 'semiconductor' },
   { url: 'https://eetimes.jp/ee/rss/index.rdf', name: 'EE Times Japan', category: 'semiconductor' },
   { url: 'https://pc.watch.impress.co.jp/data/rss/1.0/pcw/feed.rdf', name: 'PC Watch', category: 'semiconductor' },
   { url: 'https://news.mynavi.jp/rss/techplus', name: 'マイナビTech+', category: 'semiconductor' },
+  { url: 'https://www.eenewseurope.com/en/feed/', name: 'eeNews Europe', category: 'semiconductor' },
   // Gartner・調査レポート関連
   { url: 'https://www.itmedia.co.jp/rss/2.0/enterprise.xml', name: 'ITmedia Enterprise', category: 'research' },
   { url: 'https://japan.zdnet.com/feed/index.rdf', name: 'ZDNet Japan', category: 'research' },

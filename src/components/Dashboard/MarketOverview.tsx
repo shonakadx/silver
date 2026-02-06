@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { PriceChange } from '../common/PriceChange';
 import { MiniChart } from '../common/MiniChart';
 import { fetchCryptoPrices, CryptoPrice } from '../../services/cryptoService';
+import { fetchAllStockQuotes, StockQuote, INDICES } from '../../services/stockService';
 import { fetchNews } from '../../services/newsService';
 import { NewsItem } from '../../types/market';
 
@@ -69,6 +70,7 @@ function NewsSection({
 
 export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
+  const [stocks, setStocks] = useState<StockQuote[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,14 +82,16 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
       setError(null);
 
       try {
-        const [cryptoData, newsData] = await Promise.all([
+        const [cryptoData, stockData, newsData] = await Promise.all([
           fetchCryptoPrices(),
+          fetchAllStockQuotes().catch(() => []),
           fetchNews().catch(() => []),
         ]);
         setCryptos(cryptoData);
+        setStocks(stockData);
         setNews(newsData);
         setLastUpdated(new Date());
-        console.log('[MarketOverview] Loaded', cryptoData.length, 'cryptos,', newsData.length, 'news');
+        console.log('[MarketOverview] Loaded', cryptoData.length, 'cryptos,', stockData.length, 'stocks,', newsData.length, 'news');
       } catch (err) {
         console.error('[MarketOverview] Error:', err);
         setError(err instanceof Error ? err.message : 'データの取得に失敗しました');
@@ -97,8 +101,6 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
     }
 
     loadData();
-
-    // 60秒ごとに更新
     const interval = setInterval(loadData, 60000);
     return () => clearInterval(interval);
   }, []);
@@ -107,9 +109,8 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   const innovationNews = news.filter(n => n.category === 'innovation').slice(0, 4);
   const semiconductorNews = news.filter(n => n.category === 'semiconductor').slice(0, 4);
   const researchNews = news.filter(n => n.category === 'research').slice(0, 4);
-  const companyNews = news.filter(n => n.category === 'company').slice(0, 4);
 
-  if (isLoading && cryptos.length === 0) {
+  if (isLoading && cryptos.length === 0 && stocks.length === 0) {
     return (
       <div>
         <div className="page-header">
@@ -122,7 +123,7 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
     );
   }
 
-  if (error && cryptos.length === 0) {
+  if (error && cryptos.length === 0 && stocks.length === 0) {
     return (
       <div>
         <div className="page-header">
@@ -172,33 +173,87 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
         </div>
       </div>
 
-      {/* 暗号資産カード（BTC, ETH, XRP） */}
-      <div className="grid-3" style={{ marginBottom: 16 }}>
-        {cryptos.map(crypto => (
-          <div key={crypto.id} className="index-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div className="index-name">{crypto.name}</div>
-                <div className="index-symbol">{crypto.symbol.toUpperCase()}</div>
+      {/* 半導体・イノベーション指数 */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <span className="card-title">📈 半導体・イノベーション指数</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: 16 }}>
+          {(stocks.length > 0 ? stocks : INDICES.map(idx => ({
+            symbol: idx.symbol,
+            name: idx.name,
+            price: 0,
+            change: 0,
+            changePercent: 0,
+            high: 0,
+            low: 0,
+            volume: 0,
+            timestamp: '',
+          }))).map((stock, idx) => {
+            const indexInfo = INDICES.find(i => i.symbol === stock.symbol);
+            return (
+              <div
+                key={stock.symbol}
+                className="index-card"
+                style={{ cursor: 'pointer' }}
+                onClick={() => onNavigate('chart')}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div className="index-symbol" style={{ color: 'var(--blue)', fontWeight: 600 }}>{stock.symbol}</div>
+                    <div className="index-name" style={{ fontSize: 11, marginTop: 2 }}>{stock.name}</div>
+                  </div>
+                  {idx === 0 && <span style={{ fontSize: 10, color: 'var(--purple)' }}>SOX連動</span>}
+                  {idx === 1 && <span style={{ fontSize: 10, color: 'var(--orange)' }}>イノベーション</span>}
+                </div>
+                <div className="index-value" style={{ marginTop: 8 }}>
+                  ${stock.price > 0 ? stock.price.toFixed(2) : '--'}
+                </div>
+                <div className="index-change" style={{ marginTop: 4 }}>
+                  {stock.price > 0 ? (
+                    <PriceChange value={stock.change} percent={stock.changePercent} size="sm" />
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{indexInfo?.description}</span>
+                  )}
+                </div>
               </div>
-              {crypto.sparkline_in_7d && (
-                <MiniChart data={crypto.sparkline_in_7d.price.slice(-24)} width={60} height={24} />
-              )}
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 暗号資産カード（BTC, ETH, XRP） */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <span className="card-title">💰 暗号資産</span>
+        </div>
+        <div className="grid-3" style={{ padding: 16 }}>
+          {cryptos.map(crypto => (
+            <div key={crypto.id} className="index-card" onClick={() => onNavigate('chart')} style={{ cursor: 'pointer' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div className="index-name">{crypto.name}</div>
+                  <div className="index-symbol">{crypto.symbol.toUpperCase()}</div>
+                </div>
+                {crypto.sparkline_in_7d && (
+                  <MiniChart data={crypto.sparkline_in_7d.price.slice(-24)} width={60} height={24} />
+                )}
+              </div>
+              <div className="index-value">
+                ¥{crypto.current_price.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+              <div className="index-change">
+                <PriceChange value={crypto.price_change_24h} percent={crypto.price_change_percentage_24h} size="sm" />
+              </div>
             </div>
-            <div className="index-value">
-              ¥{crypto.current_price.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </div>
-            <div className="index-change">
-              <PriceChange value={crypto.price_change_24h} percent={crypto.price_change_percentage_24h} size="sm" />
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* 半導体・SOX / Gartner・調査 */}
       <div className="grid-2" style={{ marginBottom: 16 }}>
         <NewsSection
-          title="半導体・SOX指数"
+          title="半導体・SOX"
           icon="💎"
           color="var(--purple)"
           news={semiconductorNews}
@@ -213,54 +268,14 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
         />
       </div>
 
-      {/* イノベーション / 企業ニュース */}
-      <div className="grid-2" style={{ marginBottom: 16 }}>
-        <NewsSection
-          title="イノベーション・テック"
-          icon="🚀"
-          color="var(--blue)"
-          news={innovationNews}
-          onNavigate={onNavigate}
-        />
-        <NewsSection
-          title="企業・ビジネス"
-          icon="🏢"
-          color="var(--green)"
-          news={companyNews}
-          onNavigate={onNavigate}
-        />
-      </div>
-
-      {/* 指標情報カード */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">📈 主要指標・オルタナティブデータ</span>
-        </div>
-        <div style={{ padding: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-            <div style={{ padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>SOX指数</div>
-              <div style={{ fontSize: 18, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>フィラデルフィア半導体</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>NVIDIA, AMD, Intel, TSMC等</div>
-            </div>
-            <div style={{ padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>イノベーション指数</div>
-              <div style={{ fontSize: 18, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>ARK Innovation ETF</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>破壊的イノベーション企業</div>
-            </div>
-            <div style={{ padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>Gartner</div>
-              <div style={{ fontSize: 18, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>ハイプサイクル</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>テクノロジー成熟度曲線</div>
-            </div>
-            <div style={{ padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>オルタナティブ</div>
-              <div style={{ fontSize: 18, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>センチメント分析</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>ソーシャル・検索トレンド</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* イノベーション */}
+      <NewsSection
+        title="イノベーション・テック"
+        icon="🚀"
+        color="var(--blue)"
+        news={innovationNews}
+        onNavigate={onNavigate}
+      />
     </div>
   );
 }
