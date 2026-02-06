@@ -4,28 +4,32 @@ import { NewsItem } from '../types/market';
 // rss2json.com API
 const RSS2JSON_API = 'https://api.rss2json.com/v1/api.json';
 
-// ニュースフィード（暗号資産・経済・企業・イノベーション）
+// ニュースフィード（暗号資産・経済・企業・イノベーション・半導体）
 const NEWS_FEEDS = [
-  // 暗号資産
+  // 暗号資産（主要3銘柄のみ）
   { url: 'https://cointelegraph.com/rss', name: 'Cointelegraph', category: 'crypto' },
   { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', name: 'CoinDesk', category: 'crypto' },
-  // 経済・マーケット（英語）
+  // 経済・マーケット
   { url: 'https://feeds.bloomberg.com/markets/news.rss', name: 'Bloomberg', category: 'market' },
   { url: 'https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best', name: 'Reuters', category: 'economy' },
-  // 日本経済
   { url: 'https://assets.wor.jp/rss/rdf/nikkei/news.rdf', name: '日経新聞', category: 'economy' },
   // 企業ニュース
   { url: 'https://www.businessinsider.jp/feed/index.xml', name: 'Business Insider JP', category: 'company' },
   { url: 'https://jp.techcrunch.com/feed/', name: 'TechCrunch Japan', category: 'company' },
   { url: 'https://toyokeizai.net/list/feed/rss', name: '東洋経済', category: 'company' },
   { url: 'https://diamond.jp/list/feed/rss', name: 'ダイヤモンド', category: 'company' },
-  { url: 'https://www.itmedia.co.jp/rss/2.0/business.xml', name: 'ITmedia ビジネス', category: 'company' },
   // イノベーション・テクノロジー
   { url: 'https://wired.jp/feed/', name: 'WIRED Japan', category: 'innovation' },
   { url: 'https://www.technologyreview.jp/feed/', name: 'MIT Tech Review JP', category: 'innovation' },
   { url: 'https://thebridge.jp/feed', name: 'THE BRIDGE', category: 'innovation' },
-  { url: 'https://www.itmedia.co.jp/rss/2.0/news.xml', name: 'ITmedia NEWS', category: 'innovation' },
   { url: 'https://gigazine.net/news/rss_2.0/', name: 'GIGAZINE', category: 'innovation' },
+  // 半導体・SOX関連
+  { url: 'https://eetimes.jp/ee/rss/index.rdf', name: 'EE Times Japan', category: 'semiconductor' },
+  { url: 'https://pc.watch.impress.co.jp/data/rss/1.0/pcw/feed.rdf', name: 'PC Watch', category: 'semiconductor' },
+  { url: 'https://news.mynavi.jp/rss/techplus', name: 'マイナビTech+', category: 'semiconductor' },
+  // Gartner・調査レポート関連
+  { url: 'https://www.itmedia.co.jp/rss/2.0/enterprise.xml', name: 'ITmedia Enterprise', category: 'research' },
+  { url: 'https://japan.zdnet.com/feed/index.rdf', name: 'ZDNet Japan', category: 'research' },
 ];
 
 // センチメント判定
@@ -62,6 +66,20 @@ function detectDetailedCategory(title: string, defaultCategory: string): string 
       text.includes('宇宙') || text.includes('space') || text.includes('5g') || text.includes('6g') || text.includes('メタバース') ||
       text.includes('vr') || text.includes('ar') || text.includes('xr') || text.includes('web3') || text.includes('nft')) {
     return 'innovation';
+  }
+  // 半導体・SOX関連
+  if (text.includes('半導体') || text.includes('semiconductor') || text.includes('チップ') || text.includes('chip') ||
+      text.includes('nvidia') || text.includes('amd') || text.includes('intel') || text.includes('tsmc') ||
+      text.includes('sox') || text.includes('asml') || text.includes('gpu') || text.includes('cpu') ||
+      text.includes('メモリ') || text.includes('dram') || text.includes('nand') || text.includes('ファウンドリ') ||
+      text.includes('エヌビディア') || text.includes('インテル')) {
+    return 'semiconductor';
+  }
+  // Gartner・調査レポート関連
+  if (text.includes('gartner') || text.includes('ガートナー') || text.includes('idc') || text.includes('forrester') ||
+      text.includes('調査') || text.includes('予測') || text.includes('トレンド') || text.includes('ハイプサイクル') ||
+      text.includes('マジッククアドラント') || text.includes('magic quadrant')) {
+    return 'research';
   }
 
   return defaultCategory;
