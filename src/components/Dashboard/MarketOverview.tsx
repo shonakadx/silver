@@ -9,6 +9,64 @@ interface MarketOverviewProps {
   onNavigate: (page: string) => void;
 }
 
+// ニュースセクションコンポーネント
+function NewsSection({
+  title,
+  icon,
+  color,
+  news,
+  onNavigate
+}: {
+  title: string;
+  icon: string;
+  color: string;
+  news: NewsItem[];
+  onNavigate: (page: string) => void;
+}) {
+  if (news.length === 0) return null;
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <span className="card-title" style={{ color }}>{icon} {title}</span>
+        <button className="btn btn-ghost" onClick={() => onNavigate('news')}>すべて見る</button>
+      </div>
+      <div style={{ padding: '0 16px 16px' }}>
+        {news.map((item, idx) => (
+          <div
+            key={item.id || idx}
+            style={{
+              padding: '10px 0',
+              borderBottom: idx < news.length - 1 ? '1px solid var(--border-primary)' : 'none',
+            }}
+          >
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: 'var(--text-primary)',
+                textDecoration: 'none',
+                fontSize: 13,
+                fontWeight: 500,
+                display: 'block',
+                marginBottom: 4,
+                lineHeight: 1.4,
+              }}
+            >
+              {item.title}
+            </a>
+            <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--text-tertiary)' }}>
+              <span>{item.source}</span>
+              <span>{new Date(item.timestamp).toLocaleDateString('ja-JP')}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
@@ -45,22 +103,17 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const topGainers = [...cryptos]
-    .sort((a, b) => b.price_change_percentage_24h - a.price_change_percentage_24h)
-    .slice(0, 5);
-
-  const topLosers = [...cryptos]
-    .sort((a, b) => a.price_change_percentage_24h - b.price_change_percentage_24h)
-    .slice(0, 5);
-
-  // イノベーション関連ニュース
-  const innovationNews = news.filter(n => n.category === 'innovation').slice(0, 5);
+  // カテゴリ別ニュース
+  const innovationNews = news.filter(n => n.category === 'innovation').slice(0, 4);
+  const semiconductorNews = news.filter(n => n.category === 'semiconductor').slice(0, 4);
+  const researchNews = news.filter(n => n.category === 'research').slice(0, 4);
+  const companyNews = news.filter(n => n.category === 'company').slice(0, 4);
 
   if (isLoading && cryptos.length === 0) {
     return (
       <div>
         <div className="page-header">
-          <h1 className="page-title">マーケット概況</h1>
+          <h1 className="page-title">ダッシュボード</h1>
         </div>
         <div className="card" style={{ padding: 40, textAlign: 'center' }}>
           <div style={{ color: 'var(--text-muted)' }}>データを読み込み中...</div>
@@ -73,7 +126,7 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
     return (
       <div>
         <div className="page-header">
-          <h1 className="page-title">マーケット概況</h1>
+          <h1 className="page-title">ダッシュボード</h1>
         </div>
         <div className="card" style={{ padding: 40, textAlign: 'center' }}>
           <div style={{ color: 'var(--red)', marginBottom: 16 }}>⚠ {error}</div>
@@ -98,7 +151,7 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">暗号資産マーケット</h1>
+        <h1 className="page-title">投資分析ダッシュボード</h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <span
             style={{
@@ -109,7 +162,7 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
               color: '#10b981',
             }}
           >
-            ● LIVE (CoinGecko API)
+            ● LIVE
           </span>
           {lastUpdated && (
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-tertiary)' }}>
@@ -119,9 +172,9 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
         </div>
       </div>
 
-      {/* Crypto Cards */}
-      <div className="grid-5" style={{ marginBottom: 16 }}>
-        {cryptos.slice(0, 5).map(crypto => (
+      {/* 暗号資産カード（BTC, ETH, XRP） */}
+      <div className="grid-3" style={{ marginBottom: 16 }}>
+        {cryptos.map(crypto => (
           <div key={crypto.id} className="index-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
@@ -142,152 +195,70 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
         ))}
       </div>
 
+      {/* 半導体・SOX / Gartner・調査 */}
       <div className="grid-2" style={{ marginBottom: 16 }}>
-        {/* Top Gainers */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title" style={{ color: 'var(--green)' }}>▲ 24h 上昇率上位</span>
-          </div>
-          <table className="stock-table">
-            <thead>
-              <tr>
-                <th>銘柄</th>
-                <th className="right">価格 (JPY)</th>
-                <th className="right">24h変動</th>
-                <th className="right">騰落率</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topGainers.map(crypto => (
-                <tr key={crypto.id} onClick={() => onNavigate('chart')}>
-                  <td>
-                    <span className="symbol">{crypto.symbol.toUpperCase()}</span>
-                    <span className="name" style={{ marginLeft: 8 }}>{crypto.name}</span>
-                  </td>
-                  <td className="right">¥{crypto.current_price.toLocaleString()}</td>
-                  <td className="right"><PriceChange value={crypto.price_change_24h} size="sm" /></td>
-                  <td className="right">
-                    <span className={`change-badge ${crypto.price_change_percentage_24h >= 0 ? 'up' : 'down'}`}>
-                      {crypto.price_change_percentage_24h >= 0 ? '+' : ''}{crypto.price_change_percentage_24h.toFixed(2)}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Top Losers */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title" style={{ color: 'var(--red)' }}>▼ 24h 下落率上位</span>
-          </div>
-          <table className="stock-table">
-            <thead>
-              <tr>
-                <th>銘柄</th>
-                <th className="right">価格 (JPY)</th>
-                <th className="right">24h変動</th>
-                <th className="right">騰落率</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topLosers.map(crypto => (
-                <tr key={crypto.id} onClick={() => onNavigate('chart')}>
-                  <td>
-                    <span className="symbol">{crypto.symbol.toUpperCase()}</span>
-                    <span className="name" style={{ marginLeft: 8 }}>{crypto.name}</span>
-                  </td>
-                  <td className="right">¥{crypto.current_price.toLocaleString()}</td>
-                  <td className="right"><PriceChange value={crypto.price_change_24h} size="sm" /></td>
-                  <td className="right">
-                    <span className={`change-badge ${crypto.price_change_percentage_24h >= 0 ? 'up' : 'down'}`}>
-                      {crypto.price_change_percentage_24h >= 0 ? '+' : ''}{crypto.price_change_percentage_24h.toFixed(2)}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <NewsSection
+          title="半導体・SOX指数"
+          icon="💎"
+          color="var(--purple)"
+          news={semiconductorNews}
+          onNavigate={onNavigate}
+        />
+        <NewsSection
+          title="Gartner・調査レポート"
+          icon="📊"
+          color="var(--orange)"
+          news={researchNews}
+          onNavigate={onNavigate}
+        />
       </div>
 
-      {/* Innovation News */}
-      {innovationNews.length > 0 && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="card-header">
-            <span className="card-title" style={{ color: 'var(--blue)' }}>🚀 イノベーション・テック動向</span>
-            <button className="btn btn-ghost" onClick={() => onNavigate('news')}>すべて見る</button>
-          </div>
-          <div style={{ padding: '0 16px 16px' }}>
-            {innovationNews.map((item, idx) => (
-              <div
-                key={item.id || idx}
-                style={{
-                  padding: '12px 0',
-                  borderBottom: idx < innovationNews.length - 1 ? '1px solid var(--border-primary)' : 'none',
-                }}
-              >
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    color: 'var(--text-primary)',
-                    textDecoration: 'none',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    display: 'block',
-                    marginBottom: 4,
-                  }}
-                >
-                  {item.title}
-                </a>
-                <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--text-tertiary)' }}>
-                  <span>{item.source}</span>
-                  <span>{new Date(item.timestamp).toLocaleDateString('ja-JP')}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* イノベーション / 企業ニュース */}
+      <div className="grid-2" style={{ marginBottom: 16 }}>
+        <NewsSection
+          title="イノベーション・テック"
+          icon="🚀"
+          color="var(--blue)"
+          news={innovationNews}
+          onNavigate={onNavigate}
+        />
+        <NewsSection
+          title="企業・ビジネス"
+          icon="🏢"
+          color="var(--green)"
+          news={companyNews}
+          onNavigate={onNavigate}
+        />
+      </div>
 
-      {/* All Cryptos */}
+      {/* 指標情報カード */}
       <div className="card">
         <div className="card-header">
-          <span className="card-title">暗号資産一覧</span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-tertiary)' }}>
-            {cryptos.length} 銘柄
-          </span>
+          <span className="card-title">📈 主要指標・オルタナティブデータ</span>
         </div>
-        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-          <table className="stock-table">
-            <thead>
-              <tr>
-                <th>シンボル</th>
-                <th>銘柄名</th>
-                <th className="right">価格 (JPY)</th>
-                <th className="right">24h変動</th>
-                <th className="right">時価総額</th>
-                <th className="right">出来高(24h)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cryptos.map(crypto => (
-                <tr key={crypto.id} onClick={() => onNavigate('chart')}>
-                  <td><span className="symbol">{crypto.symbol.toUpperCase()}</span></td>
-                  <td className="name">{crypto.name}</td>
-                  <td className="right">¥{crypto.current_price.toLocaleString()}</td>
-                  <td className="right">
-                    <PriceChange value={crypto.price_change_24h} percent={crypto.price_change_percentage_24h} size="sm" />
-                  </td>
-                  <td className="right volume">¥{(crypto.market_cap / 1e12).toFixed(2)}T</td>
-                  <td className="right volume">¥{(crypto.total_volume / 1e9).toFixed(1)}B</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style={{ padding: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+            <div style={{ padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>SOX指数</div>
+              <div style={{ fontSize: 18, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>フィラデルフィア半導体</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>NVIDIA, AMD, Intel, TSMC等</div>
+            </div>
+            <div style={{ padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>イノベーション指数</div>
+              <div style={{ fontSize: 18, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>ARK Innovation ETF</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>破壊的イノベーション企業</div>
+            </div>
+            <div style={{ padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>Gartner</div>
+              <div style={{ fontSize: 18, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>ハイプサイクル</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>テクノロジー成熟度曲線</div>
+            </div>
+            <div style={{ padding: 16, background: 'var(--bg-tertiary)', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>オルタナティブ</div>
+              <div style={{ fontSize: 18, fontWeight: 600, fontFamily: 'var(--font-mono)' }}>センチメント分析</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>ソーシャル・検索トレンド</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
