@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { PriceChange } from '../common/PriceChange';
 import { MiniChart } from '../common/MiniChart';
 import { fetchCryptoPrices, CryptoPrice } from '../../services/cryptoService';
+import { fetchNews } from '../../services/newsService';
+import { NewsItem } from '../../types/market';
 
 interface MarketOverviewProps {
   onNavigate: (page: string) => void;
@@ -9,6 +11,7 @@ interface MarketOverviewProps {
 
 export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
+  const [news, setNews] = useState<NewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -19,10 +22,14 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
       setError(null);
 
       try {
-        const data = await fetchCryptoPrices();
-        setCryptos(data);
+        const [cryptoData, newsData] = await Promise.all([
+          fetchCryptoPrices(),
+          fetchNews().catch(() => []),
+        ]);
+        setCryptos(cryptoData);
+        setNews(newsData);
         setLastUpdated(new Date());
-        console.log('[MarketOverview] Loaded', data.length, 'cryptos');
+        console.log('[MarketOverview] Loaded', cryptoData.length, 'cryptos,', newsData.length, 'news');
       } catch (err) {
         console.error('[MarketOverview] Error:', err);
         setError(err instanceof Error ? err.message : 'データの取得に失敗しました');
@@ -45,6 +52,9 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   const topLosers = [...cryptos]
     .sort((a, b) => a.price_change_percentage_24h - b.price_change_percentage_24h)
     .slice(0, 5);
+
+  // イノベーション関連ニュース
+  const innovationNews = news.filter(n => n.category === 'innovation').slice(0, 5);
 
   if (isLoading && cryptos.length === 0) {
     return (
@@ -201,6 +211,47 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
           </table>
         </div>
       </div>
+
+      {/* Innovation News */}
+      {innovationNews.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header">
+            <span className="card-title" style={{ color: 'var(--blue)' }}>🚀 イノベーション・テック動向</span>
+            <button className="btn btn-ghost" onClick={() => onNavigate('news')}>すべて見る</button>
+          </div>
+          <div style={{ padding: '0 16px 16px' }}>
+            {innovationNews.map((item, idx) => (
+              <div
+                key={item.id || idx}
+                style={{
+                  padding: '12px 0',
+                  borderBottom: idx < innovationNews.length - 1 ? '1px solid var(--border-primary)' : 'none',
+                }}
+              >
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: 'var(--text-primary)',
+                    textDecoration: 'none',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    display: 'block',
+                    marginBottom: 4,
+                  }}
+                >
+                  {item.title}
+                </a>
+                <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--text-tertiary)' }}>
+                  <span>{item.source}</span>
+                  <span>{new Date(item.timestamp).toLocaleDateString('ja-JP')}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* All Cryptos */}
       <div className="card">
