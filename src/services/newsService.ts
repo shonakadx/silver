@@ -4,7 +4,7 @@ import { NewsItem } from '../types/market';
 // rss2json.com API
 const RSS2JSON_API = 'https://api.rss2json.com/v1/api.json';
 
-// ニュースフィード（暗号資産・経済・株式）
+// ニュースフィード（暗号資産・経済・企業・株式）
 const NEWS_FEEDS = [
   // 暗号資産
   { url: 'https://cointelegraph.com/rss', name: 'Cointelegraph', category: 'crypto' },
@@ -14,6 +14,12 @@ const NEWS_FEEDS = [
   { url: 'https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best', name: 'Reuters', category: 'economy' },
   // 日本経済
   { url: 'https://assets.wor.jp/rss/rdf/nikkei/news.rdf', name: '日経新聞', category: 'economy' },
+  // 企業ニュース
+  { url: 'https://www.businessinsider.jp/feed/index.xml', name: 'Business Insider JP', category: 'company' },
+  { url: 'https://jp.techcrunch.com/feed/', name: 'TechCrunch Japan', category: 'company' },
+  { url: 'https://toyokeizai.net/list/feed/rss', name: '東洋経済', category: 'company' },
+  { url: 'https://diamond.jp/list/feed/rss', name: 'ダイヤモンド', category: 'company' },
+  { url: 'https://www.itmedia.co.jp/rss/2.0/business.xml', name: 'ITmedia ビジネス', category: 'company' },
 ];
 
 // センチメント判定
