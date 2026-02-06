@@ -157,8 +157,8 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
                   <td className="right">¥{crypto.current_price.toLocaleString()}</td>
                   <td className="right"><PriceChange value={crypto.price_change_24h} size="sm" /></td>
                   <td className="right">
-                    <span className="change-badge up">
-                      +{crypto.price_change_percentage_24h.toFixed(2)}%
+                    <span className={`change-badge ${crypto.price_change_percentage_24h >= 0 ? 'up' : 'down'}`}>
+                      {crypto.price_change_percentage_24h >= 0 ? '+' : ''}{crypto.price_change_percentage_24h.toFixed(2)}%
                     </span>
                   </td>
                 </tr>
@@ -191,8 +191,8 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
                   <td className="right">¥{crypto.current_price.toLocaleString()}</td>
                   <td className="right"><PriceChange value={crypto.price_change_24h} size="sm" /></td>
                   <td className="right">
-                    <span className="change-badge down">
-                      {crypto.price_change_percentage_24h.toFixed(2)}%
+                    <span className={`change-badge ${crypto.price_change_percentage_24h >= 0 ? 'up' : 'down'}`}>
+                      {crypto.price_change_percentage_24h >= 0 ? '+' : ''}{crypto.price_change_percentage_24h.toFixed(2)}%
                     </span>
                   </td>
                 </tr>
