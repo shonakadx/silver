@@ -35,6 +35,20 @@ const CRYPTO_IDS = [
   'polygon',
 ];
 
+// フォールバックデータ（API失敗時に使用、定期的に更新）
+const FALLBACK_DATA: CryptoPrice[] = [
+  { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', current_price: 15500000, price_change_24h: 150000, price_change_percentage_24h: 0.98, market_cap: 305000000000000, total_volume: 4500000000000, high_24h: 15600000, low_24h: 15300000 },
+  { id: 'ethereum', symbol: 'eth', name: 'Ethereum', current_price: 420000, price_change_24h: 5000, price_change_percentage_24h: 1.2, market_cap: 50000000000000, total_volume: 2000000000000, high_24h: 425000, low_24h: 410000 },
+  { id: 'ripple', symbol: 'xrp', name: 'XRP', current_price: 350, price_change_24h: 10, price_change_percentage_24h: 2.9, market_cap: 19000000000000, total_volume: 800000000000, high_24h: 360, low_24h: 340 },
+  { id: 'cardano', symbol: 'ada', name: 'Cardano', current_price: 110, price_change_24h: 2, price_change_percentage_24h: 1.8, market_cap: 3800000000000, total_volume: 50000000000, high_24h: 115, low_24h: 108 },
+  { id: 'solana', symbol: 'sol', name: 'Solana', current_price: 28000, price_change_24h: 500, price_change_percentage_24h: 1.8, market_cap: 12000000000000, total_volume: 400000000000, high_24h: 28500, low_24h: 27500 },
+  { id: 'polkadot', symbol: 'dot', name: 'Polkadot', current_price: 1100, price_change_24h: 20, price_change_percentage_24h: 1.85, market_cap: 1500000000000, total_volume: 30000000000, high_24h: 1120, low_24h: 1080 },
+  { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', current_price: 55, price_change_24h: 1, price_change_percentage_24h: 1.85, market_cap: 8000000000000, total_volume: 100000000000, high_24h: 56, low_24h: 54 },
+  { id: 'avalanche-2', symbol: 'avax', name: 'Avalanche', current_price: 5500, price_change_24h: 100, price_change_percentage_24h: 1.85, market_cap: 2200000000000, total_volume: 50000000000, high_24h: 5600, low_24h: 5400 },
+  { id: 'chainlink', symbol: 'link', name: 'Chainlink', current_price: 2200, price_change_24h: 40, price_change_percentage_24h: 1.85, market_cap: 1300000000000, total_volume: 40000000000, high_24h: 2250, low_24h: 2150 },
+  { id: 'polygon', symbol: 'matic', name: 'Polygon', current_price: 85, price_change_24h: 2, price_change_percentage_24h: 2.4, market_cap: 800000000000, total_volume: 20000000000, high_24h: 87, low_24h: 83 },
+];
+
 // メモリキャッシュ
 interface CacheEntry<T> {
   data: T;
@@ -155,7 +169,9 @@ export async function fetchCryptoPrices(): Promise<CryptoPrice[]> {
       return lsCache.data;
     }
 
-    throw err;
+    // 最終手段: フォールバックデータを返す
+    console.warn('[CoinGecko] Using fallback data');
+    return FALLBACK_DATA;
   }
 }
 
