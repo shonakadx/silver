@@ -35,39 +35,108 @@ const CRYPTO_IDS = [
   'polygon',
 ];
 
-// 価格一覧を取得
+// キャッシュ（レート制限対策）
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const cache: {
+  prices?: CacheEntry<CryptoPrice[]>;
+  charts: Map<string, CacheEntry<CryptoChartData>>;
+} = {
+  charts: new Map(),
+};
+
+// キャッシュの有効期限（30秒）
+const CACHE_TTL = 30 * 1000;
+
+// 価格一覧を取得（キャッシュ付き）
 export async function fetchCryptoPrices(): Promise<CryptoPrice[]> {
+  // キャッシュが有効ならそれを返す
+  if (cache.prices && Date.now() - cache.prices.timestamp < CACHE_TTL) {
+    console.log('[CoinGecko] Using cached prices');
+    return cache.prices.data;
+  }
+
   const url = `${COINGECKO_API}/coins/markets?vs_currency=jpy&ids=${CRYPTO_IDS.join(',')}&order=market_cap_desc&sparkline=true&price_change_percentage=24h`;
 
   console.log('[CoinGecko] Fetching prices...');
-  const response = await fetch(url);
 
-  if (!response.ok) {
-    throw new Error(`CoinGecko API error: ${response.status}`);
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      // レート制限の場合、キャッシュがあればそれを返す
+      if (response.status === 429 && cache.prices) {
+        console.warn('[CoinGecko] Rate limited, using stale cache');
+        return cache.prices.data;
+      }
+      throw new Error(`CoinGecko API error: ${response.status}`);
+    }
+
+    const data: CryptoPrice[] = await response.json();
+    console.log('[CoinGecko] Fetched', data.length, 'prices');
+
+    // キャッシュを更新
+    cache.prices = { data, timestamp: Date.now() };
+
+    return data;
+  } catch (err) {
+    // ネットワークエラーでもキャッシュがあれば返す
+    if (cache.prices) {
+      console.warn('[CoinGecko] Error, using stale cache:', err);
+      return cache.prices.data;
+    }
+    throw err;
   }
-
-  const data: CryptoPrice[] = await response.json();
-  console.log('[CoinGecko] Fetched', data.length, 'prices');
-  return data;
 }
 
-// チャートデータを取得
+// チャートデータを取得（キャッシュ付き）
 export async function fetchCryptoChart(
   coinId: string,
   days: number = 30
 ): Promise<CryptoChartData> {
+  const cacheKey = `${coinId}-${days}`;
+  const cached = cache.charts.get(cacheKey);
+
+  // キャッシュが有効ならそれを返す
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log('[CoinGecko] Using cached chart for', coinId);
+    return cached.data;
+  }
+
   const url = `${COINGECKO_API}/coins/${coinId}/market_chart?vs_currency=jpy&days=${days}`;
 
   console.log('[CoinGecko] Fetching chart for', coinId);
-  const response = await fetch(url);
 
-  if (!response.ok) {
-    throw new Error(`CoinGecko API error: ${response.status}`);
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      // レート制限の場合、キャッシュがあればそれを返す
+      if (response.status === 429 && cached) {
+        console.warn('[CoinGecko] Rate limited, using stale chart cache');
+        return cached.data;
+      }
+      throw new Error(`CoinGecko API error: ${response.status}`);
+    }
+
+    const data: CryptoChartData = await response.json();
+    console.log('[CoinGecko] Chart data points:', data.prices.length);
+
+    // キャッシュを更新
+    cache.charts.set(cacheKey, { data, timestamp: Date.now() });
+
+    return data;
+  } catch (err) {
+    // エラーでもキャッシュがあれば返す
+    if (cached) {
+      console.warn('[CoinGecko] Error, using stale chart cache:', err);
+      return cached.data;
+    }
+    throw err;
   }
-
-  const data: CryptoChartData = await response.json();
-  console.log('[CoinGecko] Chart data points:', data.prices.length);
-  return data;
 }
 
 // 単一の暗号資産の詳細を取得
