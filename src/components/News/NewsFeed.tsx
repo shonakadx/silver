@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { newsItems as mockNewsItems } from '../../data/mockData';
 import { NewsItem } from '../../types/market';
 import { fetchNews } from '../../services/newsService';
 
@@ -31,27 +30,24 @@ function formatTimeAgo(timestamp: string): string {
 
 export function NewsFeed({ onNavigate }: NewsFeedProps) {
   const [activeCategory, setActiveCategory] = useState<NewsCategory>('all');
-  const [newsItems, setNewsItems] = useState<NewsItem[]>(mockNewsItems);
+  const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRealData, setIsRealData] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   void onNavigate;
 
   useEffect(() => {
     async function loadNews() {
       setIsLoading(true);
+      setError(null);
+
       try {
-        const realNews = await fetchNews();
-        if (realNews.length > 0) {
-          setNewsItems(realNews);
-          setIsRealData(true);
-          console.log('[NewsFeed] Loaded real news:', realNews.length);
-        } else {
-          console.log('[NewsFeed] Using mock data');
-          setIsRealData(false);
-        }
-      } catch (error) {
-        console.error('[NewsFeed] Error loading news:', error);
-        setIsRealData(false);
+        const news = await fetchNews();
+        setNewsItems(news);
+        console.log('[NewsFeed] Loaded', news.length, 'news items');
+      } catch (err) {
+        console.error('[NewsFeed] Error:', err);
+        setError(err instanceof Error ? err.message : 'ニュースの取得に失敗しました');
+        setNewsItems([]);
       } finally {
         setIsLoading(false);
       }
@@ -74,22 +70,20 @@ export function NewsFeed({ onNavigate }: NewsFeedProps) {
     <div>
       <div className="page-header">
         <h1 className="page-title">マーケットニュース</h1>
-        <span
-          style={{
-            marginLeft: '12px',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            background: isLoading
-              ? 'rgba(245, 158, 11, 0.1)'
-              : isRealData
-              ? 'rgba(16, 185, 129, 0.1)'
-              : 'rgba(239, 68, 68, 0.1)',
-            color: isLoading ? '#f59e0b' : isRealData ? '#10b981' : '#ef4444',
-          }}
-        >
-          {isLoading ? '読込中...' : isRealData ? 'リアルタイム' : 'サンプル'}
-        </span>
+        {newsItems.length > 0 && (
+          <span
+            style={{
+              marginLeft: '12px',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              background: 'rgba(16, 185, 129, 0.1)',
+              color: '#10b981',
+            }}
+          >
+            ● LIVE ({newsItems.length}件)
+          </span>
+        )}
       </div>
 
       <div className="card">
@@ -109,40 +103,48 @@ export function NewsFeed({ onNavigate }: NewsFeedProps) {
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
             ニュースを読み込み中...
           </div>
+        ) : error ? (
+          <div style={{ padding: '40px', textAlign: 'center' }}>
+            <div style={{ color: 'var(--red)', marginBottom: 16 }}>⚠ {error}</div>
+            <button
+              onClick={() => window.location.reload()}
+              style={{
+                background: 'var(--accent)',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: 4,
+                cursor: 'pointer',
+              }}
+            >
+              再読み込み
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            このカテゴリのニュースはありません
+          </div>
         ) : (
           <div>
-            {filtered.length === 0 ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                このカテゴリのニュースはありません
-              </div>
-            ) : (
-              filtered.map((news: NewsItem) => (
-                <div
-                  key={news.id}
-                  className="news-item"
-                  style={{ cursor: news.url ? 'pointer' : 'default' }}
-                  onClick={() => news.url && window.open(news.url, '_blank')}
-                >
-                  <div className="news-meta">
-                    <span className={`sentiment-dot ${news.sentiment}`} />
-                    <span className="news-source">{news.source}</span>
-                    <span className={`news-category ${news.category}`}>
-                      {categoryLabels[news.category] || news.category}
-                    </span>
-                    <span className="news-time">{formatTimeAgo(news.timestamp)}</span>
-                  </div>
-                  <div className="news-title">{news.title}</div>
-                  <div className="news-summary">{news.summary}</div>
-                  {news.symbols && news.symbols.length > 0 && (
-                    <div className="news-symbols">
-                      {news.symbols.map(s => (
-                        <span key={s} className="news-symbol-tag">{s}</span>
-                      ))}
-                    </div>
-                  )}
+            {filtered.map((news: NewsItem) => (
+              <div
+                key={news.id}
+                className="news-item"
+                style={{ cursor: news.url ? 'pointer' : 'default' }}
+                onClick={() => news.url && window.open(news.url, '_blank')}
+              >
+                <div className="news-meta">
+                  <span className={`sentiment-dot ${news.sentiment}`} />
+                  <span className="news-source">{news.source}</span>
+                  <span className={`news-category ${news.category}`}>
+                    {categoryLabels[news.category] || news.category}
+                  </span>
+                  <span className="news-time">{formatTimeAgo(news.timestamp)}</span>
                 </div>
-              ))
-            )}
+                <div className="news-title">{news.title}</div>
+                {news.summary && <div className="news-summary">{news.summary}</div>}
+              </div>
+            ))}
           </div>
         )}
       </div>

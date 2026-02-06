@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { MarketOverview } from './components/Dashboard/MarketOverview';
@@ -7,26 +7,11 @@ import { PortfolioView } from './components/Portfolio/PortfolioView';
 import { WatchlistView } from './components/Watchlist/WatchlistView';
 import { NewsFeed } from './components/News/NewsFeed';
 import { AnalysisView } from './components/Analysis/AnalysisView';
-import { useMarketStore } from './store/useMarketStore';
 
 type Page = 'dashboard' | 'chart' | 'portfolio' | 'watchlist' | 'news' | 'analysis';
 
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
-  const { simulateUpdate, fetchRealData, isLoading, lastUpdated } = useMarketStore();
-
-  // 初回データ取得
-  useEffect(() => {
-    fetchRealData();
-  }, []);
-
-  // 定期的にデータを更新（30秒間隔）
-  useEffect(() => {
-    const interval = setInterval(() => {
-      simulateUpdate();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [simulateUpdate]);
 
   const renderPage = () => {
     switch (activePage) {
