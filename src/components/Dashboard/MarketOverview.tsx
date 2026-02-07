@@ -26,11 +26,13 @@ const ETF_CATEGORIES = [
 const NEWS_CATEGORIES = [
   { id: 'genai', name: '生成AI・LLM', icon: '🧠', color: 'var(--blue)' },
   { id: 'semiconductor', name: '半導体・SOX', icon: '💎', color: 'var(--purple)' },
+  { id: 'hackernews', name: 'Hacker News', icon: '🔥', color: 'var(--orange)' },
+  { id: 'arxiv', name: 'ArXiv論文', icon: '📄', color: 'var(--cyan)' },
   { id: 'cleanenergy', name: '脱炭素・エネルギー', icon: '🌱', color: 'var(--green)' },
   { id: 'biotech', name: '精密医療・バイオ', icon: '🧬', color: 'var(--pink)' },
-  { id: 'robotics', name: 'ロボティクス', icon: '🤖', color: 'var(--cyan)' },
+  { id: 'robotics', name: 'ロボティクス', icon: '🤖', color: 'var(--text-secondary)' },
   { id: 'space', name: '宇宙開発', icon: '🚀', color: 'var(--yellow)' },
-  { id: 'resources', name: '資源・コモディティ', icon: '⛏️', color: 'var(--orange)' },
+  { id: 'resources', name: '資源・コモディティ', icon: '⛏️', color: 'var(--text-tertiary)' },
   { id: 'research', name: 'Gartner・調査', icon: '📊', color: 'var(--text-secondary)' },
 ];
 
