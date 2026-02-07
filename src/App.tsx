@@ -11,11 +11,19 @@ type Page = 'dashboard' | 'chart' | 'news' | 'analysis';
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+  const [selectedNewsCategory, setSelectedNewsCategory] = useState<string | null>(null);
 
-  const handleNavigate = (page: string, symbol?: string) => {
+  const handleNavigate = (page: string, symbolOrCategory?: string) => {
     setActivePage(page as Page);
-    if (symbol) {
-      setSelectedSymbol(symbol);
+    if (page === 'news' && symbolOrCategory) {
+      // ニュースページへの遷移時はカテゴリとして扱う
+      setSelectedNewsCategory(symbolOrCategory);
+    } else if (page === 'news') {
+      // カテゴリなしでニュースページへ遷移
+      setSelectedNewsCategory(null);
+    } else if (symbolOrCategory) {
+      // その他のページはシンボルとして扱う
+      setSelectedSymbol(symbolOrCategory);
     }
   };
 
@@ -26,7 +34,7 @@ export default function App() {
       case 'chart':
         return <StockChart initialSymbol={selectedSymbol} />;
       case 'news':
-        return <NewsFeed onNavigate={handleNavigate} />;
+        return <NewsFeed onNavigate={handleNavigate} initialCategory={selectedNewsCategory} />;
       case 'analysis':
         return <AnalysisView onNavigate={handleNavigate} />;
       default:

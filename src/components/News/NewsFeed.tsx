@@ -2,22 +2,29 @@ import { useState, useEffect } from 'react';
 import { NewsItem } from '../../types/market';
 import { fetchNews } from '../../services/newsService';
 
-type NewsCategory = 'all' | 'market' | 'economy' | 'company' | 'crypto' | 'genai' | 'semiconductor' | 'hackernews' | 'arxiv';
+type NewsCategory = 'all' | 'market' | 'economy' | 'company' | 'crypto' | 'genai' | 'semiconductor' | 'hackernews' | 'arxiv' | 'cleanenergy' | 'biotech' | 'robotics' | 'space' | 'resources' | 'research' | 'innovation';
 
 interface NewsFeedProps {
   onNavigate: (page: string) => void;
+  initialCategory?: string | null;
 }
 
 const categoryLabels: Record<string, string> = {
   all: 'すべて',
   market: 'マーケット',
-  economy: '経済',
-  company: '企業',
-  crypto: '暗号資産',
   genai: '生成AI',
   semiconductor: '半導体',
   hackernews: 'Hacker News',
   arxiv: 'ArXiv論文',
+  cleanenergy: '脱炭素・エネルギー',
+  biotech: 'バイオ',
+  robotics: 'ロボティクス',
+  space: '宇宙開発',
+  resources: '資源',
+  research: '調査',
+  company: '企業',
+  crypto: '暗号資産',
+  innovation: 'イノベーション',
 };
 
 function formatTimeAgo(timestamp: string): string {
@@ -31,12 +38,21 @@ function formatTimeAgo(timestamp: string): string {
   return `${Math.floor(diff / 1440)}日前`;
 }
 
-export function NewsFeed({ onNavigate }: NewsFeedProps) {
-  const [activeCategory, setActiveCategory] = useState<NewsCategory>('all');
+export function NewsFeed({ onNavigate, initialCategory }: NewsFeedProps) {
+  const [activeCategory, setActiveCategory] = useState<NewsCategory>(
+    (initialCategory as NewsCategory) || 'all'
+  );
   const [newsItems, setNewsItems] = useState<NewsItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   void onNavigate;
+
+  // initialCategoryが変更されたら反映
+  useEffect(() => {
+    if (initialCategory && categoryLabels[initialCategory]) {
+      setActiveCategory(initialCategory as NewsCategory);
+    }
+  }, [initialCategory]);
 
   useEffect(() => {
     async function loadNews() {
@@ -63,7 +79,11 @@ export function NewsFeed({ onNavigate }: NewsFeedProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const categories: NewsCategory[] = ['all', 'market', 'genai', 'semiconductor', 'hackernews', 'arxiv', 'company', 'crypto'];
+  const categories: NewsCategory[] = [
+    'all', 'genai', 'semiconductor', 'hackernews', 'arxiv',
+    'cleanenergy', 'biotech', 'robotics', 'space', 'resources',
+    'research', 'market', 'company', 'crypto'
+  ];
 
   const filtered = activeCategory === 'all'
     ? newsItems

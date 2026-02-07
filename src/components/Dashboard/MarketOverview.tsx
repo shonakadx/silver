@@ -41,14 +41,16 @@ function NewsSection({
   title,
   icon,
   color,
+  categoryId,
   news,
   onNavigate
 }: {
   title: string;
   icon: string;
   color: string;
+  categoryId: string;
   news: NewsItem[];
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, category?: string) => void;
 }) {
   if (news.length === 0) return null;
 
@@ -56,7 +58,7 @@ function NewsSection({
     <div className="card">
       <div className="card-header">
         <span className="card-title" style={{ color }}>{icon} {title}</span>
-        <button className="btn btn-ghost" onClick={() => onNavigate('news')}>すべて見る</button>
+        <button className="btn btn-ghost" onClick={() => onNavigate('news', categoryId)}>すべて見る</button>
       </div>
       <div style={{ padding: '0 16px 16px' }}>
         {news.map((item, idx) => (
@@ -622,6 +624,7 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
             title={category.name}
             icon={category.icon}
             color={category.color}
+            categoryId={category.id}
             news={getNewsByCategory(category.id)}
             onNavigate={onNavigate}
           />
@@ -634,6 +637,7 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
             title={category.name}
             icon={category.icon}
             color={category.color}
+            categoryId={category.id}
             news={getNewsByCategory(category.id)}
             onNavigate={onNavigate}
           />
