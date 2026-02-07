@@ -1,7 +1,7 @@
 {
-  "name": "silver",
+  "name": "remg",
   "version": "1.0.0",
-  "description": "Silver - Bloomberg-style Investment Analysis Platform",
+  "description": "REMG - Real Estate Management",
   "type": "module",
   "scripts": {
     "dev": "vite",

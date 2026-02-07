@@ -19,8 +19,8 @@ export function Header() {
   return (
     <header className="header">
       <div className="header-logo">
-        <div className="logo-icon">S</div>
-        SILVER
+        <div className="logo-icon">R</div>
+        REMG
       </div>
 
       <div className="header-time">
