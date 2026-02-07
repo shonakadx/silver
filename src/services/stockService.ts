@@ -122,7 +122,7 @@ const FALLBACK_QUOTES: Record<string, StockQuote> = {
 };
 
 // 複数プロキシでフェッチ（タイムアウト付き）
-async function fetchWithProxies(yahooUrl: string, timeout = 8000): Promise<Response> {
+async function fetchWithProxies(yahooUrl: string, timeout = 5000): Promise<Response> {
   for (const proxy of CORS_PROXIES) {
     const url = `${proxy}${encodeURIComponent(yahooUrl)}`;
     console.log('[Stock] Trying proxy:', proxy.slice(0, 30));
@@ -227,15 +227,56 @@ export async function fetchStockQuote(symbol: string): Promise<StockQuote> {
   }
 }
 
-// 複数の株価を取得
-export async function fetchAllStockQuotes(): Promise<StockQuote[]> {
-  const results = await Promise.allSettled(
-    INDICES.map(idx => fetchStockQuote(idx.symbol))
-  );
+// 優先ETF（最初に取得する6銘柄）
+const PRIORITY_SYMBOLS = ['SOXX', 'ARKK', 'ICLN', 'ARKG', 'ARKX', 'XLE'];
 
-  return results
-    .filter((r): r is PromiseFulfilledResult<StockQuote> => r.status === 'fulfilled')
-    .map(r => r.value);
+// 複数の株価を取得（優先ETFを先に取得）
+export async function fetchAllStockQuotes(): Promise<StockQuote[]> {
+  // まずフォールバックデータを返す準備
+  const fallbackResults = INDICES.map(idx => FALLBACK_QUOTES[idx.symbol]).filter(Boolean);
+
+  // 優先ETFを並列取得（タイムアウト短め）
+  const priorityIndices = INDICES.filter(idx => PRIORITY_SYMBOLS.includes(idx.symbol));
+  const otherIndices = INDICES.filter(idx => !PRIORITY_SYMBOLS.includes(idx.symbol));
+
+  try {
+    // 優先ETFを取得（最大3秒待つ）
+    const priorityResults = await Promise.race([
+      Promise.allSettled(priorityIndices.map(idx => fetchStockQuote(idx.symbol))),
+      new Promise<PromiseSettledResult<StockQuote>[]>((resolve) =>
+        setTimeout(() => resolve([]), 3000)
+      ),
+    ]);
+
+    const priorityQuotes = priorityResults
+      .filter((r): r is PromiseFulfilledResult<StockQuote> => r.status === 'fulfilled')
+      .map(r => r.value);
+
+    // 残りのETFを取得（バックグラウンド、待たない）
+    Promise.allSettled(otherIndices.map(idx => fetchStockQuote(idx.symbol)))
+      .then(results => {
+        console.log('[Stock] Background fetch completed:', results.filter(r => r.status === 'fulfilled').length);
+      })
+      .catch(() => {});
+
+    // 優先ETFが取得できた場合
+    if (priorityQuotes.length > 0) {
+      // 残りはフォールバックデータで埋める
+      const otherSymbols = otherIndices.map(i => i.symbol);
+      const otherQuotes = otherSymbols
+        .map(symbol => FALLBACK_QUOTES[symbol])
+        .filter(Boolean);
+
+      return [...priorityQuotes, ...otherQuotes];
+    }
+
+    // 何も取得できなかった場合はフォールバック
+    console.warn('[Stock] Using all fallback data');
+    return fallbackResults;
+  } catch (err) {
+    console.error('[Stock] fetchAllStockQuotes error:', err);
+    return fallbackResults;
+  }
 }
 
 // チャートデータを取得
