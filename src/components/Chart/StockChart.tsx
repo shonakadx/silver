@@ -45,6 +45,7 @@ export function StockChart({ initialSymbol }: StockChartProps) {
   const volumeCanvasRef = useRef<HTMLCanvasElement>(null);
   const [chartType, setChartType] = useState<ChartType>('line');
   const [hoveredData, setHoveredData] = useState<{ idx: number; x: number; y: number } | null>(null);
+  const [userSwitchedAssetType, setUserSwitchedAssetType] = useState(false);
 
   const crypto = cryptos.find(c => c.id === selectedAsset);
   const stock = stocks.find(s => s.symbol === selectedAsset);
@@ -54,6 +55,7 @@ export function StockChart({ initialSymbol }: StockChartProps) {
   useEffect(() => {
     if (initialSymbol) {
       const isCrypto = ['bitcoin', 'ethereum', 'ripple'].includes(initialSymbol);
+      setUserSwitchedAssetType(false); // ダッシュボードからの遷移なのでフラグをリセット
       setAssetType(isCrypto ? 'crypto' : 'stock');
       setSelectedAsset(initialSymbol);
     }
@@ -76,14 +78,17 @@ export function StockChart({ initialSymbol }: StockChartProps) {
     loadAssets();
   }, []);
 
-  // 資産タイプ変更時
+  // 資産タイプ変更時（ユーザーがタブを切り替えた時のみ）
+  // initialSymbolがある場合は上書きしない
   useEffect(() => {
+    if (!userSwitchedAssetType) return;
+
     if (assetType === 'crypto' && cryptos.length > 0) {
       setSelectedAsset(cryptos[0].id);
     } else if (assetType === 'stock') {
       setSelectedAsset('SOXX');
     }
-  }, [assetType, cryptos]);
+  }, [assetType, cryptos, userSwitchedAssetType]);
 
   // チャートデータを取得
   useEffect(() => {
@@ -410,13 +415,19 @@ export function StockChart({ initialSymbol }: StockChartProps) {
       <div className="tabs" style={{ marginBottom: 12 }}>
         <button
           className={`tab ${assetType === 'stock' ? 'active' : ''}`}
-          onClick={() => setAssetType('stock')}
+          onClick={() => {
+            setUserSwitchedAssetType(true);
+            setAssetType('stock');
+          }}
         >
           📈 テーマ別ETF
         </button>
         <button
           className={`tab ${assetType === 'crypto' ? 'active' : ''}`}
-          onClick={() => setAssetType('crypto')}
+          onClick={() => {
+            setUserSwitchedAssetType(true);
+            setAssetType('crypto');
+          }}
         >
           💰 暗号資産
         </button>
