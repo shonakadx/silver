@@ -1,5 +1,11 @@
 // 企業決算情報サービス
-// 業種別の主要企業の決算スケジュールと結果を提供
+// Yahoo Finance APIから実際の決算データを取得
+
+const YAHOO_API = 'https://query1.finance.yahoo.com/v10/finance/quoteSummary';
+const CORS_PROXIES = [
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
+];
 
 export interface EarningsData {
   symbol: string;
@@ -8,63 +14,214 @@ export interface EarningsData {
   fiscalQuarter: string;
   estimatedEPS: number | null;
   actualEPS: number | null;
-  estimatedRevenue: number | null;  // 億ドル
-  actualRevenue: number | null;     // 億ドル
-  surprise: number | null;          // EPS サプライズ %
+  estimatedRevenue: number | null;
+  actualRevenue: number | null;
+  surprise: number | null;
   category: string;
   status: 'upcoming' | 'reported';
 }
 
-// 業種別の主要企業決算データ
-const EARNINGS_DATA: EarningsData[] = [
-  // 半導体・テクノロジー
-  { symbol: 'NVDA', companyName: 'NVIDIA', reportDate: '2026-02-26', fiscalQuarter: 'Q4 2026', estimatedEPS: 0.89, actualEPS: null, estimatedRevenue: 380, actualRevenue: null, surprise: null, category: 'semiconductor', status: 'upcoming' },
-  { symbol: 'AMD', companyName: 'AMD', reportDate: '2026-02-04', fiscalQuarter: 'Q4 2025', estimatedEPS: 1.08, actualEPS: 1.12, estimatedRevenue: 75, actualRevenue: 76.7, surprise: 3.7, category: 'semiconductor', status: 'reported' },
-  { symbol: 'INTC', companyName: 'Intel', reportDate: '2026-01-30', fiscalQuarter: 'Q4 2025', estimatedEPS: 0.12, actualEPS: 0.13, estimatedRevenue: 137, actualRevenue: 142, surprise: 8.3, category: 'semiconductor', status: 'reported' },
-  { symbol: 'AVGO', companyName: 'Broadcom', reportDate: '2026-03-06', fiscalQuarter: 'Q1 2026', estimatedEPS: 1.52, actualEPS: null, estimatedRevenue: 146, actualRevenue: null, surprise: null, category: 'semiconductor', status: 'upcoming' },
-  { symbol: 'TSM', companyName: 'TSMC', reportDate: '2026-01-16', fiscalQuarter: 'Q4 2025', estimatedEPS: 2.18, actualEPS: 2.24, estimatedRevenue: 268, actualRevenue: 270, surprise: 2.8, category: 'semiconductor', status: 'reported' },
+// 業種別の主要企業リスト
+const COMPANIES_BY_CATEGORY: Record<string, { symbol: string; name: string }[]> = {
+  semiconductor: [
+    { symbol: 'NVDA', name: 'NVIDIA' },
+    { symbol: 'AMD', name: 'AMD' },
+    { symbol: 'INTC', name: 'Intel' },
+    { symbol: 'AVGO', name: 'Broadcom' },
+    { symbol: 'TSM', name: 'TSMC' },
+  ],
+  innovation: [
+    { symbol: 'MSFT', name: 'Microsoft' },
+    { symbol: 'GOOGL', name: 'Alphabet' },
+    { symbol: 'META', name: 'Meta' },
+    { symbol: 'AMZN', name: 'Amazon' },
+    { symbol: 'PLTR', name: 'Palantir' },
+  ],
+  cleanenergy: [
+    { symbol: 'TSLA', name: 'Tesla' },
+    { symbol: 'ENPH', name: 'Enphase' },
+    { symbol: 'NEE', name: 'NextEra Energy' },
+    { symbol: 'FSLR', name: 'First Solar' },
+  ],
+  biotech: [
+    { symbol: 'MRNA', name: 'Moderna' },
+    { symbol: 'REGN', name: 'Regeneron' },
+    { symbol: 'VRTX', name: 'Vertex Pharma' },
+    { symbol: 'ILMN', name: 'Illumina' },
+  ],
+  space: [
+    { symbol: 'LMT', name: 'Lockheed Martin' },
+    { symbol: 'BA', name: 'Boeing' },
+    { symbol: 'NOC', name: 'Northrop Grumman' },
+    { symbol: 'RKLB', name: 'Rocket Lab' },
+  ],
+  resources: [
+    { symbol: 'XOM', name: 'Exxon Mobil' },
+    { symbol: 'CVX', name: 'Chevron' },
+    { symbol: 'NEM', name: 'Newmont' },
+    { symbol: 'FCX', name: 'Freeport-McMoRan' },
+  ],
+};
 
-  // AI・イノベーション
-  { symbol: 'MSFT', companyName: 'Microsoft', reportDate: '2026-01-28', fiscalQuarter: 'Q2 2026', estimatedEPS: 3.12, actualEPS: 3.23, estimatedRevenue: 688, actualRevenue: 695, surprise: 3.5, category: 'innovation', status: 'reported' },
-  { symbol: 'GOOGL', companyName: 'Alphabet', reportDate: '2026-02-04', fiscalQuarter: 'Q4 2025', estimatedEPS: 2.05, actualEPS: 2.15, estimatedRevenue: 965, actualRevenue: 984, surprise: 4.9, category: 'innovation', status: 'reported' },
-  { symbol: 'META', companyName: 'Meta Platforms', reportDate: '2026-01-29', fiscalQuarter: 'Q4 2025', estimatedEPS: 6.72, actualEPS: 6.98, estimatedRevenue: 462, actualRevenue: 480, surprise: 3.9, category: 'innovation', status: 'reported' },
-  { symbol: 'AMZN', companyName: 'Amazon', reportDate: '2026-02-06', fiscalQuarter: 'Q4 2025', estimatedEPS: 1.48, actualEPS: 1.59, estimatedRevenue: 1875, actualRevenue: 1900, surprise: 7.4, category: 'innovation', status: 'reported' },
-  { symbol: 'PLTR', companyName: 'Palantir', reportDate: '2026-02-18', fiscalQuarter: 'Q4 2025', estimatedEPS: 0.11, actualEPS: null, estimatedRevenue: 7.8, actualRevenue: null, surprise: null, category: 'innovation', status: 'upcoming' },
+// キャッシュ
+const LS_EARNINGS_KEY = 'earnings_cache';
+const CACHE_TTL = 60 * 60 * 1000; // 1時間
 
-  // クリーンエネルギー
-  { symbol: 'TSLA', companyName: 'Tesla', reportDate: '2026-01-29', fiscalQuarter: 'Q4 2025', estimatedEPS: 0.72, actualEPS: 0.76, estimatedRevenue: 276, actualRevenue: 282, surprise: 5.6, category: 'cleanenergy', status: 'reported' },
-  { symbol: 'ENPH', companyName: 'Enphase Energy', reportDate: '2026-02-11', fiscalQuarter: 'Q4 2025', estimatedEPS: 0.85, actualEPS: null, estimatedRevenue: 3.8, actualRevenue: null, surprise: null, category: 'cleanenergy', status: 'upcoming' },
-  { symbol: 'NEE', companyName: 'NextEra Energy', reportDate: '2026-01-24', fiscalQuarter: 'Q4 2025', estimatedEPS: 0.52, actualEPS: 0.55, estimatedRevenue: 68, actualRevenue: 72, surprise: 5.8, category: 'cleanenergy', status: 'reported' },
-  { symbol: 'FSLR', companyName: 'First Solar', reportDate: '2026-02-25', fiscalQuarter: 'Q4 2025', estimatedEPS: 4.20, actualEPS: null, estimatedRevenue: 12.5, actualRevenue: null, surprise: null, category: 'cleanenergy', status: 'upcoming' },
+interface CacheEntry {
+  data: EarningsData[];
+  timestamp: number;
+}
 
-  // バイオテック
-  { symbol: 'MRNA', companyName: 'Moderna', reportDate: '2026-02-13', fiscalQuarter: 'Q4 2025', estimatedEPS: -2.45, actualEPS: null, estimatedRevenue: 8.5, actualRevenue: null, surprise: null, category: 'biotech', status: 'upcoming' },
-  { symbol: 'REGN', companyName: 'Regeneron', reportDate: '2026-02-06', fiscalQuarter: 'Q4 2025', estimatedEPS: 11.85, actualEPS: 12.10, estimatedRevenue: 36, actualRevenue: 37.2, surprise: 2.1, category: 'biotech', status: 'reported' },
-  { symbol: 'VRTX', companyName: 'Vertex Pharma', reportDate: '2026-02-10', fiscalQuarter: 'Q4 2025', estimatedEPS: 4.32, actualEPS: null, estimatedRevenue: 28, actualRevenue: null, surprise: null, category: 'biotech', status: 'upcoming' },
-  { symbol: 'ILMN', companyName: 'Illumina', reportDate: '2026-02-11', fiscalQuarter: 'Q4 2025', estimatedEPS: 1.05, actualEPS: null, estimatedRevenue: 10.8, actualRevenue: null, surprise: null, category: 'biotech', status: 'upcoming' },
+function loadCache(): CacheEntry | null {
+  try {
+    const cached = localStorage.getItem(LS_EARNINGS_KEY);
+    if (cached) {
+      const entry: CacheEntry = JSON.parse(cached);
+      if (Date.now() - entry.timestamp < CACHE_TTL) {
+        return entry;
+      }
+    }
+  } catch (e) {
+    console.warn('[Earnings] Cache load error:', e);
+  }
+  return null;
+}
 
-  // 宇宙開発
-  { symbol: 'LMT', companyName: 'Lockheed Martin', reportDate: '2026-01-28', fiscalQuarter: 'Q4 2025', estimatedEPS: 7.24, actualEPS: 7.58, estimatedRevenue: 186, actualRevenue: 191, surprise: 4.7, category: 'space', status: 'reported' },
-  { symbol: 'BA', companyName: 'Boeing', reportDate: '2026-01-29', fiscalQuarter: 'Q4 2025', estimatedEPS: -0.45, actualEPS: -0.35, estimatedRevenue: 168, actualRevenue: 172, surprise: 22.2, category: 'space', status: 'reported' },
-  { symbol: 'NOC', companyName: 'Northrop Grumman', reportDate: '2026-01-30', fiscalQuarter: 'Q4 2025', estimatedEPS: 6.82, actualEPS: 7.15, estimatedRevenue: 102, actualRevenue: 104, surprise: 4.8, category: 'space', status: 'reported' },
-  { symbol: 'RKLB', companyName: 'Rocket Lab', reportDate: '2026-02-27', fiscalQuarter: 'Q4 2025', estimatedEPS: -0.08, actualEPS: null, estimatedRevenue: 1.3, actualRevenue: null, surprise: null, category: 'space', status: 'upcoming' },
+function saveCache(data: EarningsData[]) {
+  try {
+    localStorage.setItem(LS_EARNINGS_KEY, JSON.stringify({
+      data,
+      timestamp: Date.now(),
+    }));
+  } catch (e) {
+    // 容量オーバー等
+  }
+}
 
-  // 資源・コモディティ
-  { symbol: 'XOM', companyName: 'Exxon Mobil', reportDate: '2026-01-31', fiscalQuarter: 'Q4 2025', estimatedEPS: 1.78, actualEPS: 1.92, estimatedRevenue: 885, actualRevenue: 912, surprise: 7.9, category: 'resources', status: 'reported' },
-  { symbol: 'CVX', companyName: 'Chevron', reportDate: '2026-01-31', fiscalQuarter: 'Q4 2025', estimatedEPS: 2.85, actualEPS: 2.96, estimatedRevenue: 485, actualRevenue: 492, surprise: 3.9, category: 'resources', status: 'reported' },
-  { symbol: 'NEM', companyName: 'Newmont Mining', reportDate: '2026-02-20', fiscalQuarter: 'Q4 2025', estimatedEPS: 0.92, actualEPS: null, estimatedRevenue: 48, actualRevenue: null, surprise: null, category: 'resources', status: 'upcoming' },
-  { symbol: 'FCX', companyName: 'Freeport-McMoRan', reportDate: '2026-01-23', fiscalQuarter: 'Q4 2025', estimatedEPS: 0.28, actualEPS: 0.31, estimatedRevenue: 58, actualRevenue: 62, surprise: 10.7, category: 'resources', status: 'reported' },
-];
+// プロキシ経由でフェッチ
+async function fetchWithProxy(url: string, timeout = 3000): Promise<Response | null> {
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      const response = await fetch(`${proxy}${encodeURIComponent(url)}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (response.ok) return response;
+    } catch (e) {
+      // 次のプロキシを試す
+    }
+  }
+  return null;
+}
 
-// 決算データを取得
+// 個別銘柄の決算情報を取得
+async function fetchEarningsForSymbol(
+  symbol: string,
+  companyName: string,
+  category: string
+): Promise<EarningsData | null> {
+  const url = `${YAHOO_API}/${symbol}?modules=calendarEvents,earnings`;
+
+  try {
+    const response = await fetchWithProxy(url);
+    if (!response) return null;
+
+    const data = await response.json();
+    const result = data.quoteSummary?.result?.[0];
+    if (!result) return null;
+
+    const calendar = result.calendarEvents;
+    const earnings = result.earnings;
+
+    // 次回決算日
+    const earningsDate = calendar?.earnings?.earningsDate?.[0]?.raw;
+    const epsEstimate = calendar?.earnings?.earningsAverage?.raw;
+    const revenueEstimate = calendar?.earnings?.revenueAverage?.raw;
+
+    // 直近の決算結果
+    const history = earnings?.earningsChart?.quarterly;
+    const latestQuarter = history?.[history.length - 1];
+    const actualEPS = latestQuarter?.actual?.raw;
+    const estimateEPS = latestQuarter?.estimate?.raw;
+
+    const today = new Date();
+    const reportDate = earningsDate ? new Date(earningsDate * 1000) : null;
+    const isUpcoming = reportDate && reportDate > today;
+
+    // 四半期を推定
+    const fiscalQuarter = reportDate
+      ? `Q${Math.ceil((reportDate.getMonth() + 1) / 3)} ${reportDate.getFullYear()}`
+      : 'N/A';
+
+    // サプライズ計算
+    let surprise: number | null = null;
+    if (actualEPS !== undefined && estimateEPS !== undefined && estimateEPS !== 0) {
+      surprise = ((actualEPS - estimateEPS) / Math.abs(estimateEPS)) * 100;
+    }
+
+    return {
+      symbol,
+      companyName,
+      reportDate: reportDate ? reportDate.toISOString().split('T')[0] : 'TBD',
+      fiscalQuarter,
+      estimatedEPS: epsEstimate ?? estimateEPS ?? null,
+      actualEPS: isUpcoming ? null : (actualEPS ?? null),
+      estimatedRevenue: revenueEstimate ? revenueEstimate / 1e9 : null, // 億ドル換算
+      actualRevenue: null, // Yahoo APIからは取得困難
+      surprise: isUpcoming ? null : surprise,
+      category,
+      status: isUpcoming ? 'upcoming' : 'reported',
+    };
+  } catch (e) {
+    console.warn('[Earnings] Error fetching', symbol, e);
+    return null;
+  }
+}
+
+// 全決算データを取得
 export async function fetchEarningsData(): Promise<EarningsData[]> {
-  // 実際のプロダクションでは、Financial Modeling Prep API やAlpha Vantage APIなどを使用
-  // 今回はデモ用データを返す
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(EARNINGS_DATA);
-    }, 100);
-  });
+  // キャッシュ確認
+  const cached = loadCache();
+  if (cached) {
+    console.log('[Earnings] Using cached data');
+    return cached.data;
+  }
+
+  console.log('[Earnings] Fetching fresh data...');
+  const allCompanies: { symbol: string; name: string; category: string }[] = [];
+
+  for (const [category, companies] of Object.entries(COMPANIES_BY_CATEGORY)) {
+    for (const company of companies) {
+      allCompanies.push({ ...company, category });
+    }
+  }
+
+  // 並列取得（レート制限を考慮して少しずつ）
+  const results: EarningsData[] = [];
+  const batchSize = 5;
+
+  for (let i = 0; i < allCompanies.length; i += batchSize) {
+    const batch = allCompanies.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(c => fetchEarningsForSymbol(c.symbol, c.name, c.category))
+    );
+    results.push(...batchResults.filter((r): r is EarningsData => r !== null));
+
+    // レート制限回避のため少し待機
+    if (i + batchSize < allCompanies.length) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
+
+  // キャッシュ保存
+  if (results.length > 0) {
+    saveCache(results);
+  }
+
+  console.log('[Earnings] Fetched', results.length, 'earnings');
+  return results;
 }
 
 // カテゴリ別決算データを取得
@@ -76,7 +233,7 @@ export function getEarningsByCategory(data: EarningsData[], categoryId: string):
 export function getUpcomingEarnings(data: EarningsData[]): EarningsData[] {
   const today = new Date();
   return data
-    .filter(e => e.status === 'upcoming' && new Date(e.reportDate) >= today)
+    .filter(e => e.status === 'upcoming' && e.reportDate !== 'TBD' && new Date(e.reportDate) >= today)
     .sort((a, b) => new Date(a.reportDate).getTime() - new Date(b.reportDate).getTime());
 }
 

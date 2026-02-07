@@ -109,7 +109,7 @@ function ETFSection({
   });
 
   if (categoryStocks.length === 0) {
-    // フォールバック: INDICESから該当カテゴリのETFを表示
+    // フォールバック: INDICESから該当カテゴリのETFを表示（スケルトン）
     const fallbackIndices = INDICES.filter(i =>
       i.category === category.id ||
       (category.id === 'innovation' && (i.category === 'ai' || i.category === 'robotics' || i.category === 'innovation'))
@@ -120,18 +120,20 @@ function ETFSection({
       <div className="card">
         <div className="card-header">
           <span className="card-title" style={{ color: category.color }}>{category.icon} {category.name}</span>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', animation: 'pulse 1.5s infinite' }}>読み込み中...</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12, padding: 16 }}>
           {fallbackIndices.map(idx => (
             <div
               key={idx.symbol}
               className="index-card"
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', opacity: 0.7 }}
               onClick={() => onNavigate('chart', idx.symbol)}
             >
               <div className="index-symbol" style={{ color: category.color, fontWeight: 600 }}>{idx.symbol}</div>
               <div className="index-name" style={{ fontSize: 11, marginTop: 2 }}>{idx.name}</div>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{idx.description}</div>
+              <div style={{ marginTop: 8, height: 20, background: 'var(--bg-tertiary)', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
             </div>
           ))}
         </div>
@@ -348,29 +350,36 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
+    // 決算データは即座に読み込み（ローカルデータ）
+    fetchEarningsData().then(setEarnings).catch(() => {});
+
     async function loadData() {
       setIsLoading(true);
       setError(null);
 
-      try {
-        const [cryptoData, stockData, newsData, earningsData] = await Promise.all([
-          fetchCryptoPrices(),
-          fetchAllStockQuotes().catch(() => []),
-          fetchNews().catch(() => []),
-          fetchEarningsData().catch(() => []),
-        ]);
-        setCryptos(cryptoData);
-        setStocks(stockData);
-        setNews(newsData);
-        setEarnings(earningsData);
-        setLastUpdated(new Date());
-        console.log('[MarketOverview] Loaded', cryptoData.length, 'cryptos,', stockData.length, 'stocks,', newsData.length, 'news,', earningsData.length, 'earnings');
-      } catch (err) {
-        console.error('[MarketOverview] Error:', err);
-        setError(err instanceof Error ? err.message : 'データの取得に失敗しました');
-      } finally {
-        setIsLoading(false);
-      }
+      // 段階的読み込み - 各データが取得でき次第表示
+      fetchCryptoPrices()
+        .then(data => {
+          setCryptos(data);
+          setLastUpdated(new Date());
+        })
+        .catch(err => console.error('[MarketOverview] Crypto error:', err));
+
+      fetchAllStockQuotes()
+        .then(data => {
+          setStocks(data);
+          setLastUpdated(new Date());
+        })
+        .catch(err => console.error('[MarketOverview] Stock error:', err));
+
+      fetchNews()
+        .then(data => {
+          setNews(data);
+        })
+        .catch(err => console.error('[MarketOverview] News error:', err));
+
+      // 初期ローディングは1秒後に解除
+      setTimeout(() => setIsLoading(false), 1000);
     }
 
     loadData();
@@ -383,18 +392,6 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
     return news.filter(n => n.category === categoryId).slice(0, 3);
   };
 
-  if (isLoading && cryptos.length === 0 && stocks.length === 0) {
-    return (
-      <div>
-        <div className="page-header">
-          <h1 className="page-title">ダッシュボード</h1>
-        </div>
-        <div className="card" style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ color: 'var(--text-muted)' }}>データを読み込み中...</div>
-        </div>
-      </div>
-    );
-  }
 
   if (error && cryptos.length === 0 && stocks.length === 0) {
     return (
@@ -427,17 +424,31 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
       <div className="page-header">
         <h1 className="page-title">投資分析ダッシュボード</h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <span
-            style={{
-              padding: '4px 8px',
-              borderRadius: 4,
-              fontSize: 11,
-              background: 'rgba(16, 185, 129, 0.1)',
-              color: '#10b981',
-            }}
-          >
-            ● LIVE
-          </span>
+          {isLoading ? (
+            <span
+              style={{
+                padding: '4px 8px',
+                borderRadius: 4,
+                fontSize: 11,
+                background: 'rgba(251, 191, 36, 0.1)',
+                color: '#fbbf24',
+              }}
+            >
+              ● 読み込み中...
+            </span>
+          ) : (
+            <span
+              style={{
+                padding: '4px 8px',
+                borderRadius: 4,
+                fontSize: 11,
+                background: 'rgba(16, 185, 129, 0.1)',
+                color: '#10b981',
+              }}
+            >
+              ● LIVE
+            </span>
+          )}
           {lastUpdated && (
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-tertiary)' }}>
               最終更新: {lastUpdated.toLocaleTimeString('ja-JP')}
