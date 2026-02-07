@@ -3,6 +3,7 @@ import { NewsItem } from '../types/market';
 
 // API設定
 const RSS2JSON_API = 'https://api.rss2json.com/v1/api.json';
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 const HACKER_NEWS_API = 'https://hacker-news.firebaseio.com/v0';
 const ARXIV_API = 'https://export.arxiv.org/api/query';
 
@@ -211,26 +212,84 @@ function detectCategoryFromKeywords(title: string): string | null {
   return null;
 }
 
-// RSSフィードからニュースを取得
-async function fetchFromFeed(feedUrl: string, sourceName: string, defaultCategory: string): Promise<NewsItem[]> {
-  const url = `${RSS2JSON_API}?rss_url=${encodeURIComponent(feedUrl)}`;
+// XMLからRSSアイテムをパース
+function parseRSSXml(xmlText: string): any[] {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
 
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+  // RSS 2.0形式
+  let items = xmlDoc.querySelectorAll('item');
+  if (items.length === 0) {
+    // Atom形式
+    items = xmlDoc.querySelectorAll('entry');
   }
 
-  const data = await response.json();
+  const results: any[] = [];
+  items.forEach((item) => {
+    const title = item.querySelector('title')?.textContent || '';
+    const link = item.querySelector('link')?.textContent ||
+                 item.querySelector('link')?.getAttribute('href') || '';
+    const description = item.querySelector('description')?.textContent ||
+                       item.querySelector('summary')?.textContent ||
+                       item.querySelector('content')?.textContent || '';
+    const pubDate = item.querySelector('pubDate')?.textContent ||
+                   item.querySelector('published')?.textContent ||
+                   item.querySelector('updated')?.textContent ||
+                   item.querySelector('dc\\:date')?.textContent || '';
 
-  if (data.status !== 'ok' || !data.items) {
-    throw new Error(`Feed error: ${data.message || 'Unknown error'}`);
+    results.push({ title, link, description, pubDate });
+  });
+
+  return results;
+}
+
+// CORSプロキシ経由でRSSを取得
+async function fetchRSSWithProxy(feedUrl: string): Promise<any[]> {
+  const proxyUrl = `${CORS_PROXY}${encodeURIComponent(feedUrl)}`;
+  const response = await fetch(proxyUrl);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+  const xmlText = await response.text();
+  return parseRSSXml(xmlText);
+}
+
+// RSSフィードからニュースを取得
+async function fetchFromFeed(feedUrl: string, sourceName: string, defaultCategory: string): Promise<NewsItem[]> {
+  let items: any[] = [];
+
+  // まずRSS2JSONを試す
+  try {
+    const url = `${RSS2JSON_API}?rss_url=${encodeURIComponent(feedUrl)}`;
+    const response = await fetch(url);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === 'ok' && data.items) {
+        items = data.items;
+      }
+    }
+  } catch (e) {
+    // RSS2JSONが失敗した場合は無視
+  }
+
+  // RSS2JSONが失敗した場合、CORSプロキシを試す
+  if (items.length === 0) {
+    try {
+      items = await fetchRSSWithProxy(feedUrl);
+    } catch (e) {
+      console.warn(`[News] Failed to fetch ${sourceName}:`, e);
+      return [];
+    }
+  }
+
+  if (items.length === 0) {
+    return [];
   }
 
   const isSpecializedFeed = SPECIALIZED_CATEGORIES.includes(defaultCategory);
   const now = new Date();
 
   // 不要なニュースをフィルタリング
-  const filteredItems = data.items.filter((item: any) => {
+  const filteredItems = items.filter((item: any) => {
     const title = item.title || '';
     if (isIrrelevantNews(title)) return false;
 
