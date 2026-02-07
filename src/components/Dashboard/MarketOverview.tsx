@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { PriceChange } from '../common/PriceChange';
 import { MiniChart } from '../common/MiniChart';
 import { fetchCryptoPrices, CryptoPrice } from '../../services/cryptoService';
-import { fetchAllStockQuotes, fetchStockChart, StockQuote, StockChartData, INDICES } from '../../services/stockService';
+import { fetchAllStockQuotes, fetchStockChart, getAllCachedCharts, StockQuote, StockChartData, INDICES } from '../../services/stockService';
 import { fetchNews } from '../../services/newsService';
 import { fetchEarningsData, EarningsData, getEarningsByCategory, getUpcomingEarnings } from '../../services/earningsService';
 import { NewsItem } from '../../types/market';
@@ -384,6 +384,13 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
+    // 即座にキャッシュからチャートを読み込み（API呼び出しなし）
+    const cachedCharts = getAllCachedCharts(90);
+    if (cachedCharts.size > 0) {
+      setCharts(cachedCharts);
+      console.log('[MarketOverview] Loaded', cachedCharts.size, 'charts from cache');
+    }
+
     // 決算データは即座に読み込み（ローカルデータ）
     fetchEarningsData().then(setEarnings).catch(() => {});
 
@@ -403,7 +410,7 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
         .then(data => {
           setStocks(data);
           setLastUpdated(new Date());
-          // 株価取得後、チャートデータも取得
+          // 株価取得後、バックグラウンドでチャートデータを更新
           loadChartData(data.map(s => s.symbol));
         })
         .catch(err => console.error('[MarketOverview] Stock error:', err));
@@ -414,18 +421,18 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
         })
         .catch(err => console.error('[MarketOverview] News error:', err));
 
-      // 初期ローディングは1秒後に解除
-      setTimeout(() => setIsLoading(false), 1000);
+      // 初期ローディングは500msで解除（キャッシュがあるので早く）
+      setTimeout(() => setIsLoading(false), 500);
     }
 
-    // 3ヶ月チャートデータを取得
+    // 3ヶ月チャートデータをバックグラウンドで取得・更新
     async function loadChartData(symbols: string[]) {
-      const chartMap = new Map<string, StockChartData>();
-      // 並列で取得（5銘柄ずつ）
-      for (let i = 0; i < symbols.length; i += 5) {
-        const batch = symbols.slice(i, i + 5);
+      const chartMap = new Map(charts); // 既存のキャッシュを保持
+      // 並列で取得（8銘柄ずつに増やして高速化）
+      for (let i = 0; i < symbols.length; i += 8) {
+        const batch = symbols.slice(i, i + 8);
         const results = await Promise.allSettled(
-          batch.map(symbol => fetchStockChart(symbol, 90)) // 90日 = 3ヶ月
+          batch.map(symbol => fetchStockChart(symbol, 90))
         );
         results.forEach((result, idx) => {
           if (result.status === 'fulfilled' && result.value.prices.length > 0) {

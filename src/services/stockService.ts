@@ -222,12 +222,47 @@ export async function fetchAllStockQuotes(): Promise<StockQuote[]> {
   }
 }
 
+// キャッシュからチャートデータを即座に取得（API呼び出しなし）
+export function getChartFromCache(symbol: string, days: number = 365): StockChartData | null {
+  const cacheKey = `${symbol}-${days}`;
+
+  // メモリキャッシュ確認
+  const cached = cache.charts.get(cacheKey);
+  if (cached) {
+    return cached.data;
+  }
+
+  // LocalStorageキャッシュ確認
+  const lsCache = loadFromLocalStorage<StockChartData>(LS_CHARTS_KEY);
+  if (lsCache && lsCache[cacheKey]) {
+    // メモリキャッシュにも保存
+    cache.charts.set(cacheKey, { data: lsCache[cacheKey].data, timestamp: lsCache[cacheKey].timestamp });
+    return lsCache[cacheKey].data;
+  }
+
+  return null;
+}
+
+// 全ETFのキャッシュ済みチャートを取得
+export function getAllCachedCharts(days: number = 90): Map<string, StockChartData> {
+  const chartMap = new Map<string, StockChartData>();
+  for (const idx of INDICES) {
+    const cached = getChartFromCache(idx.symbol, days);
+    if (cached && cached.prices.length > 0) {
+      chartMap.set(idx.symbol, cached);
+    }
+  }
+  return chartMap;
+}
+
 // チャートデータを取得（デフォルト1年）
 export async function fetchStockChart(symbol: string, days: number = 365): Promise<StockChartData> {
   const cacheKey = `${symbol}-${days}`;
   const cached = cache.charts.get(cacheKey);
 
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+  // キャッシュTTLを30分に延長（チャートは頻繁に変わらない）
+  const CHART_CACHE_TTL = 30 * 60 * 1000;
+  if (cached && Date.now() - cached.timestamp < CHART_CACHE_TTL) {
     console.log('[Stock] Using cached chart for', symbol);
     return cached.data;
   }
