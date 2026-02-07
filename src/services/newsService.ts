@@ -70,9 +70,31 @@ const NEWS_FEEDS = [
   { url: 'https://news.mynavi.jp/rss/techplus', name: 'マイナビTech+', category: 'semiconductor' },
   { url: 'https://www.eenewseurope.com/en/feed/', name: 'eeNews Europe', category: 'semiconductor' },
   { url: 'https://semiengineering.com/feed/', name: 'Semiconductor Engineering', category: 'semiconductor' },
-  // Gartner・調査レポート関連
+  // 調査レポート・省庁・シンクタンク
   { url: 'https://www.itmedia.co.jp/rss/2.0/enterprise.xml', name: 'ITmedia Enterprise', category: 'research' },
   { url: 'https://japan.zdnet.com/feed/index.rdf', name: 'ZDNet Japan', category: 'research' },
+  // 経済産業省
+  { url: 'https://www.meti.go.jp/rss/index.rdf', name: '経済産業省', category: 'research' },
+  // 総務省
+  { url: 'https://www.soumu.go.jp/rss/menu_news.xml', name: '総務省', category: 'research' },
+  // 内閣府
+  { url: 'https://www.cao.go.jp/rss/index.xml', name: '内閣府', category: 'research' },
+  // 日本銀行
+  { url: 'https://www.boj.or.jp/rss/whatsnew.xml', name: '日本銀行', category: 'research' },
+  // 財務省
+  { url: 'https://www.mof.go.jp/rss/index.xml', name: '財務省', category: 'research' },
+  // 特許庁
+  { url: 'https://www.jpo.go.jp/rss/index.rdf', name: '特許庁', category: 'research' },
+  // 科学技術振興機構（JST）
+  { url: 'https://www.jst.go.jp/rss/whatsnew.xml', name: 'JST科学技術振興機構', category: 'research' },
+  // NEDO（新エネルギー・産業技術総合開発機構）
+  { url: 'https://www.nedo.go.jp/rss/news.xml', name: 'NEDO', category: 'research' },
+  // 日本総研
+  { url: 'https://www.jri.co.jp/rss/report.xml', name: '日本総研', category: 'research' },
+  // 野村総研
+  { url: 'https://www.nri.com/jp/rss/news.xml', name: '野村総研', category: 'research' },
+  // みずほリサーチ
+  { url: 'https://www.mizuho-rt.co.jp/rss/index.xml', name: 'みずほリサーチ', category: 'research' },
   // 生成AI・LLM（専門）
   { url: 'https://www.itmedia.co.jp/rss/2.0/aiplus.xml', name: 'ITmedia AI+', category: 'genai' },
   { url: 'https://ledge.ai/feed/', name: 'Ledge.ai', category: 'genai' },
