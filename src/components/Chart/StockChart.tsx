@@ -16,6 +16,12 @@ interface ChartData {
   volume: number;
 }
 
+interface TechnicalIndicators {
+  sma20: boolean;
+  sma50: boolean;
+  bollingerBands: boolean;
+}
+
 const periodToDays: Record<Period, number> = {
   '1D': 1,
   '7D': 7,
@@ -23,6 +29,69 @@ const periodToDays: Record<Period, number> = {
   '90D': 90,
   '1Y': 365,
 };
+
+// テクニカル指標の計算
+function calculateSMA(data: number[], period: number): (number | null)[] {
+  const result: (number | null)[] = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      result.push(null);
+    } else {
+      const sum = data.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+      result.push(sum / period);
+    }
+  }
+  return result;
+}
+
+function calculateBollingerBands(data: number[], period: number = 20, stdDev: number = 2): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } {
+  const sma = calculateSMA(data, period);
+  const upper: (number | null)[] = [];
+  const lower: (number | null)[] = [];
+
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1 || sma[i] === null) {
+      upper.push(null);
+      lower.push(null);
+    } else {
+      const slice = data.slice(i - period + 1, i + 1);
+      const mean = sma[i]!;
+      const variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / period;
+      const std = Math.sqrt(variance);
+      upper.push(mean + stdDev * std);
+      lower.push(mean - stdDev * std);
+    }
+  }
+
+  return { upper, middle: sma, lower };
+}
+
+function calculateRSI(data: number[], period: number = 14): (number | null)[] {
+  const result: (number | null)[] = [];
+  const gains: number[] = [];
+  const losses: number[] = [];
+
+  for (let i = 0; i < data.length; i++) {
+    if (i === 0) {
+      result.push(null);
+      continue;
+    }
+
+    const change = data[i] - data[i - 1];
+    gains.push(change > 0 ? change : 0);
+    losses.push(change < 0 ? Math.abs(change) : 0);
+
+    if (i < period) {
+      result.push(null);
+    } else {
+      const avgGain = gains.slice(-period).reduce((a, b) => a + b, 0) / period;
+      const avgLoss = losses.slice(-period).reduce((a, b) => a + b, 0) / period;
+      const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+      result.push(100 - (100 / (1 + rs)));
+    }
+  }
+  return result;
+}
 
 interface StockChartProps {
   initialSymbol?: string | null;
@@ -43,9 +112,16 @@ export function StockChart({ initialSymbol }: StockChartProps) {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const volumeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const rsiCanvasRef = useRef<HTMLCanvasElement>(null);
   const [chartType, setChartType] = useState<ChartType>('line');
   const [hoveredData, setHoveredData] = useState<{ idx: number; x: number; y: number } | null>(null);
   const [userSwitchedAssetType, setUserSwitchedAssetType] = useState(false);
+  const [indicators, setIndicators] = useState<TechnicalIndicators>({
+    sma20: true,
+    sma50: false,
+    bollingerBands: false,
+  });
+  const [showRSI, setShowRSI] = useState(false);
 
   const crypto = cryptos.find(c => c.id === selectedAsset);
   const stock = stocks.find(s => s.symbol === selectedAsset);
@@ -130,14 +206,22 @@ export function StockChart({ initialSymbol }: StockChartProps) {
           const data = await fetchStockChart(selectedAsset, days);
 
           if (data.dates.length > 0) {
-            const chartPoints: ChartData[] = data.dates.map((date, i) => ({
-              time: new Date(date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }),
-              open: data.prices[i],
-              high: data.prices[i] * 1.01,
-              low: data.prices[i] * 0.99,
-              close: data.prices[i],
-              volume: data.volumes[i],
-            }));
+            // 日次の価格変動からOHLCを計算
+            const chartPoints: ChartData[] = data.dates.map((date, i) => {
+              const price = data.prices[i];
+              const prevPrice = i > 0 ? data.prices[i - 1] : price;
+              // 実際の価格変動に基づいてOHLCを推定
+              const change = Math.abs(price - prevPrice);
+              const volatility = Math.max(change, price * 0.005); // 最低0.5%のボラティリティ
+              return {
+                time: new Date(date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }),
+                open: prevPrice,
+                high: Math.max(price, prevPrice) + volatility * 0.5,
+                low: Math.min(price, prevPrice) - volatility * 0.5,
+                close: price,
+                volume: data.volumes[i],
+              };
+            });
             setChartData(chartPoints);
           } else {
             // データがない場合は空
@@ -160,8 +244,11 @@ export function StockChart({ initialSymbol }: StockChartProps) {
     if (chartData.length > 0) {
       drawChart();
       drawVolume();
+      if (showRSI) {
+        drawRSI();
+      }
     }
-  }, [chartData, chartType, hoveredData]);
+  }, [chartData, chartType, hoveredData, indicators, showRSI]);
 
   function drawChart() {
     const canvas = canvasRef.current;
@@ -259,6 +346,98 @@ export function StockChart({ initialSymbol }: StockChartProps) {
       ctx.fill();
     }
 
+    // テクニカル指標を描画
+    const closePrices = chartData.map(d => d.close);
+
+    // SMA 20
+    if (indicators.sma20) {
+      const sma20 = calculateSMA(closePrices, 20);
+      ctx.beginPath();
+      ctx.strokeStyle = '#f59e0b'; // オレンジ
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([]);
+      sma20.forEach((val, i) => {
+        if (val !== null) {
+          const x = toX(i);
+          const y = toY(val);
+          if (i === 0 || sma20[i - 1] === null) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+      });
+      ctx.stroke();
+    }
+
+    // SMA 50
+    if (indicators.sma50) {
+      const sma50 = calculateSMA(closePrices, 50);
+      ctx.beginPath();
+      ctx.strokeStyle = '#06b6d4'; // シアン
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([]);
+      sma50.forEach((val, i) => {
+        if (val !== null) {
+          const x = toX(i);
+          const y = toY(val);
+          if (i === 0 || sma50[i - 1] === null) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+      });
+      ctx.stroke();
+    }
+
+    // ボリンジャーバンド
+    if (indicators.bollingerBands) {
+      const bb = calculateBollingerBands(closePrices, 20, 2);
+
+      // 上バンド
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.6)'; // 紫
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 2]);
+      bb.upper.forEach((val, i) => {
+        if (val !== null) {
+          const x = toX(i);
+          const y = toY(val);
+          if (i === 0 || bb.upper[i - 1] === null) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+      });
+      ctx.stroke();
+
+      // 下バンド
+      ctx.beginPath();
+      bb.lower.forEach((val, i) => {
+        if (val !== null) {
+          const x = toX(i);
+          const y = toY(val);
+          if (i === 0 || bb.lower[i - 1] === null) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+      });
+      ctx.stroke();
+
+      // バンド間を塗りつぶし
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(168, 85, 247, 0.05)';
+      let started = false;
+      bb.upper.forEach((val, i) => {
+        if (val !== null) {
+          const x = toX(i);
+          const y = toY(val);
+          if (!started) { ctx.moveTo(x, y); started = true; }
+          else ctx.lineTo(x, y);
+        }
+      });
+      for (let i = bb.lower.length - 1; i >= 0; i--) {
+        if (bb.lower[i] !== null) {
+          ctx.lineTo(toX(i), toY(bb.lower[i]!));
+        }
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.setLineDash([]);
+    }
+
     if (hoveredData && hoveredData.idx >= 0 && hoveredData.idx < chartData.length) {
       const d = chartData[hoveredData.idx];
       const x = toX(hoveredData.idx);
@@ -310,6 +489,100 @@ export function StockChart({ initialSymbol }: StockChartProps) {
       ctx.fillStyle = isUp ? 'rgba(16, 185, 129, 0.4)' : 'rgba(239, 68, 68, 0.4)';
       ctx.fillRect(x - barW / 2, h - barH, barW, barH);
     });
+  }
+
+  function drawRSI() {
+    const canvas = rsiCanvasRef.current;
+    if (!canvas || chartData.length === 0) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const w = rect.width;
+    const h = rect.height;
+    const padding = { top: 10, right: 80, bottom: 10, left: 10 };
+    const chartW = w - padding.left - padding.right;
+    const chartH = h - padding.top - padding.bottom;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // RSI計算
+    const closePrices = chartData.map(d => d.close);
+    const rsiData = calculateRSI(closePrices, 14);
+
+    const toX = (i: number) => padding.left + (i / (chartData.length - 1)) * chartW;
+    const toY = (val: number) => padding.top + (1 - val / 100) * chartH;
+
+    // 背景グリッド
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 0.5;
+
+    // 30と70のライン（過売り/過買いゾーン）
+    [30, 50, 70].forEach(level => {
+      const y = toY(level);
+      ctx.beginPath();
+      ctx.moveTo(padding.left, y);
+      ctx.lineTo(w - padding.right, y);
+      ctx.stroke();
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px JetBrains Mono';
+      ctx.textAlign = 'right';
+      ctx.fillText(level.toString(), w - 4, y + 3);
+    });
+
+    // 過買い/過売りゾーンの色分け
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.05)'; // 過買い（赤）
+    ctx.fillRect(padding.left, padding.top, chartW, toY(70) - padding.top);
+
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.05)'; // 過売り（緑）
+    ctx.fillRect(padding.left, toY(30), chartW, h - padding.bottom - toY(30));
+
+    // RSIライン描画
+    ctx.beginPath();
+    ctx.strokeStyle = '#eab308'; // 黄色
+    ctx.lineWidth = 1.5;
+
+    rsiData.forEach((val, i) => {
+      if (val !== null) {
+        const x = toX(i);
+        const y = toY(val);
+        if (i === 0 || rsiData[i - 1] === null) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+
+    // 最新RSI値を表示
+    const latestRSI = rsiData.filter(v => v !== null).pop();
+    if (latestRSI !== undefined && latestRSI !== null) {
+      const lastIdx = rsiData.length - 1;
+      const x = toX(lastIdx);
+      const y = toY(latestRSI);
+
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = latestRSI > 70 ? '#ef4444' : latestRSI < 30 ? '#10b981' : '#eab308';
+      ctx.fill();
+
+      // 値ラベル
+      ctx.fillStyle = latestRSI > 70 ? '#ef4444' : latestRSI < 30 ? '#10b981' : '#eab308';
+      ctx.font = 'bold 11px JetBrains Mono';
+      ctx.textAlign = 'left';
+      ctx.fillText(`RSI: ${latestRSI.toFixed(1)}`, x + 8, y + 4);
+    }
+
+    // ラベル
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('RSI (14)', padding.left + 4, padding.top + 12);
   }
 
   function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -470,6 +743,43 @@ export function StockChart({ initialSymbol }: StockChartProps) {
         </div>
       </div>
 
+      {/* Technical Indicators */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginRight: 8, alignSelf: 'center' }}>指標:</span>
+        <button
+          className={`chart-btn ${indicators.sma20 ? 'active' : ''}`}
+          onClick={() => setIndicators(prev => ({ ...prev, sma20: !prev.sma20 }))}
+          style={{ fontSize: 11, padding: '4px 8px' }}
+        >
+          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', marginRight: 4 }} />
+          SMA 20
+        </button>
+        <button
+          className={`chart-btn ${indicators.sma50 ? 'active' : ''}`}
+          onClick={() => setIndicators(prev => ({ ...prev, sma50: !prev.sma50 }))}
+          style={{ fontSize: 11, padding: '4px 8px' }}
+        >
+          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#06b6d4', marginRight: 4 }} />
+          SMA 50
+        </button>
+        <button
+          className={`chart-btn ${indicators.bollingerBands ? 'active' : ''}`}
+          onClick={() => setIndicators(prev => ({ ...prev, bollingerBands: !prev.bollingerBands }))}
+          style={{ fontSize: 11, padding: '4px 8px' }}
+        >
+          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#a855f7', marginRight: 4 }} />
+          BB
+        </button>
+        <button
+          className={`chart-btn ${showRSI ? 'active' : ''}`}
+          onClick={() => setShowRSI(!showRSI)}
+          style={{ fontSize: 11, padding: '4px 8px' }}
+        >
+          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#eab308', marginRight: 4 }} />
+          RSI
+        </button>
+      </div>
+
       {/* OHLCV display */}
       {hovered && (
         <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
@@ -492,9 +802,16 @@ export function StockChart({ initialSymbol }: StockChartProps) {
       </div>
 
       {/* Volume Chart */}
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card" style={{ marginBottom: showRSI ? 4 : 16 }}>
         <canvas ref={volumeCanvasRef} style={{ width: '100%', height: 80, display: 'block' }} />
       </div>
+
+      {/* RSI Chart */}
+      {showRSI && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <canvas ref={rsiCanvasRef} style={{ width: '100%', height: 100, display: 'block' }} />
+        </div>
+      )}
 
       {/* Asset Info */}
       {currentAsset && (
