@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NewsItem } from '../../types/market';
 import { fetchNews } from '../../services/newsService';
 
-type NewsCategory = 'all' | 'market' | 'economy' | 'company' | 'crypto' | 'forex';
+type NewsCategory = 'all' | 'market' | 'economy' | 'company' | 'crypto' | 'genai' | 'semiconductor' | 'hackernews' | 'arxiv';
 
 interface NewsFeedProps {
   onNavigate: (page: string) => void;
@@ -14,7 +14,10 @@ const categoryLabels: Record<string, string> = {
   economy: '経済',
   company: '企業',
   crypto: '暗号資産',
-  forex: '為替',
+  genai: '生成AI',
+  semiconductor: '半導体',
+  hackernews: 'Hacker News',
+  arxiv: 'ArXiv論文',
 };
 
 function formatTimeAgo(timestamp: string): string {
@@ -60,7 +63,7 @@ export function NewsFeed({ onNavigate }: NewsFeedProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const categories: NewsCategory[] = ['all', 'market', 'economy', 'company', 'crypto', 'forex'];
+  const categories: NewsCategory[] = ['all', 'market', 'genai', 'semiconductor', 'hackernews', 'arxiv', 'company', 'crypto'];
 
   const filtered = activeCategory === 'all'
     ? newsItems

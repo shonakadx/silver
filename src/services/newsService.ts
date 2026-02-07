@@ -1,11 +1,17 @@
-// ニュースサービス - 複数ジャンルのRSSソースを使用
+// ニュースサービス - 複数ソースからニュースを集約
 import { NewsItem } from '../types/market';
 
-// rss2json.com API
+// API設定
 const RSS2JSON_API = 'https://api.rss2json.com/v1/api.json';
+const HACKER_NEWS_API = 'https://hacker-news.firebaseio.com/v0';
+const ARXIV_API = 'https://export.arxiv.org/api/query';
+
+// APIキー（オプション - 環境変数から取得）
+const NEWS_API_KEY = import.meta.env.VITE_NEWS_API_KEY || '';
+const FMP_API_KEY = import.meta.env.VITE_FMP_API_KEY || '';
 
 // 専門カテゴリ（このカテゴリのフィードはカテゴリを変更しない）
-const SPECIALIZED_CATEGORIES = ['genai', 'cleanenergy', 'biotech', 'robotics', 'space', 'resources', 'semiconductor'];
+const SPECIALIZED_CATEGORIES = ['genai', 'cleanenergy', 'biotech', 'robotics', 'space', 'resources', 'semiconductor', 'arxiv', 'hackernews'];
 
 // ニュースフィード（暗号資産・経済・企業・イノベーション・半導体・テーマ投資）
 const NEWS_FEEDS = [
@@ -65,8 +71,8 @@ const NEWS_FEEDS = [
 function detectSentiment(title: string): 'positive' | 'negative' | 'neutral' {
   const text = title.toLowerCase();
 
-  const positiveWords = ['surge', 'rise', 'gain', 'rally', 'bull', 'up', 'high', 'record', 'soar', 'jump', 'launch', 'approve', '上昇', '高値', '好調', '増益', '最高'];
-  const negativeWords = ['drop', 'fall', 'decline', 'crash', 'bear', 'down', 'low', 'plunge', 'dump', 'sell', 'hack', 'scam', 'fail', '下落', '安値', '減益', '暴落'];
+  const positiveWords = ['surge', 'rise', 'gain', 'rally', 'bull', 'up', 'high', 'record', 'soar', 'jump', 'launch', 'approve', 'breakthrough', 'success', '上昇', '高値', '好調', '増益', '最高', '成功'];
+  const negativeWords = ['drop', 'fall', 'decline', 'crash', 'bear', 'down', 'low', 'plunge', 'dump', 'sell', 'hack', 'scam', 'fail', 'layoff', 'cut', '下落', '安値', '減益', '暴落', '失敗'];
 
   if (positiveWords.some(w => text.includes(w))) return 'positive';
   if (negativeWords.some(w => text.includes(w))) return 'negative';
@@ -145,14 +151,12 @@ function detectCategoryFromKeywords(title: string): string | null {
     return 'research';
   }
 
-  return null; // キーワードにマッチしない場合はnull
+  return null;
 }
 
 // RSSフィードからニュースを取得
 async function fetchFromFeed(feedUrl: string, sourceName: string, defaultCategory: string): Promise<NewsItem[]> {
   const url = `${RSS2JSON_API}?rss_url=${encodeURIComponent(feedUrl)}`;
-
-  console.log(`[News] Fetching from ${sourceName}...`);
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -165,15 +169,11 @@ async function fetchFromFeed(feedUrl: string, sourceName: string, defaultCategor
     throw new Error(`Feed error: ${data.message || 'Unknown error'}`);
   }
 
-  console.log(`[News] ${sourceName}: ${data.items.length} items`);
-
-  // 専門カテゴリのフィードはカテゴリを維持
   const isSpecializedFeed = SPECIALIZED_CATEGORIES.includes(defaultCategory);
 
   return data.items.slice(0, 10).map((item: any, index: number) => {
     let category = defaultCategory;
 
-    // 汎用フィード（innovation, company, economy, market）の場合のみキーワード判定
     if (!isSpecializedFeed) {
       const detectedCategory = detectCategoryFromKeywords(item.title || '');
       if (detectedCategory) {
@@ -194,27 +194,291 @@ async function fetchFromFeed(feedUrl: string, sourceName: string, defaultCategor
   });
 }
 
+// ========== Hacker News API ==========
+async function fetchHackerNews(): Promise<NewsItem[]> {
+  console.log('[News] Fetching from Hacker News...');
+
+  try {
+    // トップストーリーのIDを取得
+    const topStoriesRes = await fetch(`${HACKER_NEWS_API}/topstories.json`);
+    if (!topStoriesRes.ok) throw new Error('Failed to fetch top stories');
+
+    const storyIds: number[] = await topStoriesRes.json();
+    const top20Ids = storyIds.slice(0, 20);
+
+    // 各ストーリーの詳細を取得
+    const stories = await Promise.all(
+      top20Ids.map(async (id) => {
+        const res = await fetch(`${HACKER_NEWS_API}/item/${id}.json`);
+        return res.json();
+      })
+    );
+
+    // テック/投資関連のキーワードでフィルタリング
+    const techKeywords = ['ai', 'ml', 'gpu', 'nvidia', 'tesla', 'apple', 'google', 'microsoft', 'amazon', 'meta',
+                          'startup', 'vc', 'funding', 'ipo', 'crypto', 'bitcoin', 'ethereum', 'semiconductor',
+                          'robot', 'space', 'energy', 'biotech', 'quantum', 'llm', 'gpt', 'openai', 'anthropic'];
+
+    const filteredStories = stories.filter(story => {
+      if (!story || !story.title) return false;
+      const title = story.title.toLowerCase();
+      return techKeywords.some(kw => title.includes(kw)) || story.score > 100;
+    });
+
+    console.log(`[News] Hacker News: ${filteredStories.length} relevant items`);
+
+    return filteredStories.slice(0, 10).map((story: any, index: number) => ({
+      id: `hackernews-${story.id}`,
+      title: story.title,
+      summary: `Score: ${story.score} | Comments: ${story.descendants || 0}`,
+      source: 'Hacker News',
+      timestamp: new Date(story.time * 1000).toISOString(),
+      category: 'hackernews',
+      sentiment: detectSentiment(story.title),
+      url: story.url || `https://news.ycombinator.com/item?id=${story.id}`,
+    }));
+  } catch (error) {
+    console.warn('[News] Hacker News failed:', error);
+    return [];
+  }
+}
+
+// ========== ArXiv API (AI/ML論文) ==========
+async function fetchArxivPapers(): Promise<NewsItem[]> {
+  console.log('[News] Fetching from ArXiv...');
+
+  try {
+    // AI/ML関連の最新論文を検索
+    const queries = [
+      'cat:cs.AI', // Artificial Intelligence
+      'cat:cs.LG', // Machine Learning
+      'cat:cs.CL', // Computation and Language (NLP)
+      'cat:cs.CV', // Computer Vision
+    ];
+
+    const searchQuery = queries.join('+OR+');
+    const url = `${ARXIV_API}?search_query=${searchQuery}&start=0&max_results=15&sortBy=submittedDate&sortOrder=descending`;
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const xmlText = await response.text();
+
+    // XMLをパース
+    const parser = new DOMParser();
+    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+    const entries = xmlDoc.getElementsByTagName('entry');
+
+    const papers: NewsItem[] = [];
+
+    for (let i = 0; i < Math.min(entries.length, 10); i++) {
+      const entry = entries[i];
+      const title = entry.getElementsByTagName('title')[0]?.textContent?.replace(/\s+/g, ' ').trim() || '';
+      const summary = entry.getElementsByTagName('summary')[0]?.textContent?.replace(/\s+/g, ' ').trim().substring(0, 200) || '';
+      const published = entry.getElementsByTagName('published')[0]?.textContent || '';
+      const id = entry.getElementsByTagName('id')[0]?.textContent || '';
+
+      // 著者を取得
+      const authors = entry.getElementsByTagName('author');
+      const authorNames: string[] = [];
+      for (let j = 0; j < Math.min(authors.length, 3); j++) {
+        const name = authors[j].getElementsByTagName('name')[0]?.textContent;
+        if (name) authorNames.push(name);
+      }
+      const authorStr = authorNames.join(', ') + (authors.length > 3 ? ' et al.' : '');
+
+      papers.push({
+        id: `arxiv-${Date.now()}-${i}`,
+        title: title,
+        summary: `${authorStr} - ${summary}...`,
+        source: 'ArXiv',
+        timestamp: published,
+        category: 'arxiv',
+        sentiment: 'neutral',
+        url: id,
+      });
+    }
+
+    console.log(`[News] ArXiv: ${papers.length} papers`);
+    return papers;
+  } catch (error) {
+    console.warn('[News] ArXiv failed:', error);
+    return [];
+  }
+}
+
+// ========== NewsAPI (オプション - APIキーが必要) ==========
+async function fetchNewsAPI(): Promise<NewsItem[]> {
+  if (!NEWS_API_KEY) {
+    console.log('[News] NewsAPI: Skipped (no API key)');
+    return [];
+  }
+
+  console.log('[News] Fetching from NewsAPI...');
+
+  try {
+    // ビジネス・テクノロジーニュースを取得
+    const url = `https://newsapi.org/v2/top-headlines?category=technology&language=en&pageSize=15&apiKey=${NEWS_API_KEY}`;
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+
+    if (data.status !== 'ok' || !data.articles) {
+      throw new Error(data.message || 'NewsAPI error');
+    }
+
+    console.log(`[News] NewsAPI: ${data.articles.length} articles`);
+
+    return data.articles.slice(0, 10).map((article: any, index: number) => ({
+      id: `newsapi-${Date.now()}-${index}`,
+      title: article.title || 'No title',
+      summary: article.description || '',
+      source: article.source?.name || 'NewsAPI',
+      timestamp: article.publishedAt || new Date().toISOString(),
+      category: detectCategoryFromKeywords(article.title || '') || 'market',
+      sentiment: detectSentiment(article.title || ''),
+      url: article.url,
+    }));
+  } catch (error) {
+    console.warn('[News] NewsAPI failed:', error);
+    return [];
+  }
+}
+
+// ========== Financial Modeling Prep (オプション - APIキーが必要) ==========
+async function fetchFMPNews(): Promise<NewsItem[]> {
+  if (!FMP_API_KEY) {
+    console.log('[News] FMP: Skipped (no API key)');
+    return [];
+  }
+
+  console.log('[News] Fetching from Financial Modeling Prep...');
+
+  try {
+    // 株式ニュースを取得
+    const url = `https://financialmodelingprep.com/api/v3/stock_news?limit=20&apikey=${FMP_API_KEY}`;
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const articles = await response.json();
+
+    if (!Array.isArray(articles)) {
+      throw new Error('Invalid FMP response');
+    }
+
+    console.log(`[News] FMP: ${articles.length} articles`);
+
+    // 関連するシンボルでフィルタリング
+    const relevantSymbols = ['NVDA', 'TSLA', 'AAPL', 'GOOGL', 'MSFT', 'AMZN', 'META', 'AMD', 'INTC', 'SOXX', 'SMH', 'ARKK', 'ARKG'];
+
+    return articles
+      .filter((article: any) => {
+        const symbol = article.symbol?.toUpperCase();
+        return relevantSymbols.includes(symbol) || !article.symbol;
+      })
+      .slice(0, 10)
+      .map((article: any, index: number) => ({
+        id: `fmp-${Date.now()}-${index}`,
+        title: article.title || 'No title',
+        summary: article.text?.substring(0, 150) || '',
+        source: article.site || 'FMP',
+        timestamp: article.publishedDate || new Date().toISOString(),
+        category: detectCategoryFromKeywords(article.title || '') || 'market',
+        sentiment: detectSentiment(article.title || ''),
+        url: article.url,
+      }));
+  } catch (error) {
+    console.warn('[News] FMP failed:', error);
+    return [];
+  }
+}
+
+// ========== SEC EDGAR (企業の提出書類) ==========
+async function fetchSECFilings(): Promise<NewsItem[]> {
+  console.log('[News] Fetching from SEC EDGAR...');
+
+  try {
+    // SEC RSSフィードから最新の提出書類を取得
+    const url = `${RSS2JSON_API}?rss_url=${encodeURIComponent('https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&company=&dateb=&owner=include&count=20&output=atom')}`;
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+
+    if (data.status !== 'ok' || !data.items) {
+      throw new Error('SEC feed error');
+    }
+
+    // 主要企業のフィリングのみをフィルタリング
+    const majorCompanies = ['NVIDIA', 'TESLA', 'APPLE', 'ALPHABET', 'MICROSOFT', 'AMAZON', 'META', 'AMD', 'INTEL', 'QUALCOMM'];
+
+    const relevantFilings = data.items.filter((item: any) => {
+      const title = (item.title || '').toUpperCase();
+      return majorCompanies.some(company => title.includes(company));
+    });
+
+    console.log(`[News] SEC EDGAR: ${relevantFilings.length} relevant filings`);
+
+    return relevantFilings.slice(0, 5).map((item: any, index: number) => ({
+      id: `sec-${Date.now()}-${index}`,
+      title: item.title || 'SEC Filing',
+      summary: (item.description || '').replace(/<[^>]*>/g, '').substring(0, 150),
+      source: 'SEC EDGAR',
+      timestamp: item.pubDate || new Date().toISOString(),
+      category: 'market',
+      sentiment: 'neutral',
+      url: item.link,
+    }));
+  } catch (error) {
+    console.warn('[News] SEC EDGAR failed:', error);
+    return [];
+  }
+}
+
 // メイン関数
 export async function fetchNews(): Promise<NewsItem[]> {
   console.log('[News] Fetching news from multiple sources...');
 
-  const results = await Promise.allSettled(
-    NEWS_FEEDS.map(feed => fetchFromFeed(feed.url, feed.name, feed.category))
-  );
+  // 全ソースから並列取得
+  const [rssResults, hackerNews, arxivPapers, newsApiArticles, fmpNews, secFilings] = await Promise.all([
+    // 既存のRSSフィード
+    Promise.allSettled(
+      NEWS_FEEDS.map(feed => fetchFromFeed(feed.url, feed.name, feed.category))
+    ),
+    // 新規API
+    fetchHackerNews(),
+    fetchArxivPapers(),
+    fetchNewsAPI(),
+    fetchFMPNews(),
+    fetchSECFilings(),
+  ]);
 
   const allNews: NewsItem[] = [];
   let successCount = 0;
 
-  for (const result of results) {
+  // RSSフィードの結果を処理
+  for (const result of rssResults) {
     if (result.status === 'fulfilled') {
       allNews.push(...result.value);
       successCount++;
-    } else {
-      console.warn('[News] Feed failed:', result.reason);
     }
   }
 
-  console.log(`[News] ${successCount}/${NEWS_FEEDS.length} feeds succeeded, ${allNews.length} total items`);
+  // 新規APIの結果を追加
+  allNews.push(...hackerNews);
+  allNews.push(...arxivPapers);
+  allNews.push(...newsApiArticles);
+  allNews.push(...fmpNews);
+  allNews.push(...secFilings);
+
+  const additionalSources = [hackerNews, arxivPapers, newsApiArticles, fmpNews, secFilings]
+    .filter(arr => arr.length > 0).length;
+
+  console.log(`[News] ${successCount}/${NEWS_FEEDS.length} RSS feeds + ${additionalSources} API sources, ${allNews.length} total items`);
 
   if (allNews.length === 0) {
     throw new Error('ニュースの取得に失敗しました。しばらくしてから再試行してください。');
@@ -227,5 +491,8 @@ export async function fetchNews(): Promise<NewsItem[]> {
     new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
 
-  return uniqueNews.slice(0, 50);
+  return uniqueNews.slice(0, 80);
 }
+
+// 個別のAPIからニュースを取得する関数をエクスポート
+export { fetchHackerNews, fetchArxivPapers, fetchNewsAPI, fetchFMPNews, fetchSECFilings };
