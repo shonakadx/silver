@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { PriceChange } from '../common/PriceChange';
 import { MiniChart } from '../common/MiniChart';
 import { fetchCryptoPrices, CryptoPrice } from '../../services/cryptoService';
-import { fetchAllStockQuotes, StockQuote, INDICES } from '../../services/stockService';
+import { fetchAllStockQuotes, fetchStockChart, StockQuote, StockChartData, INDICES } from '../../services/stockService';
 import { fetchNews } from '../../services/newsService';
 import { fetchEarningsData, EarningsData, getEarningsByCategory, getUpcomingEarnings } from '../../services/earningsService';
 import { NewsItem } from '../../types/market';
@@ -96,10 +96,12 @@ function NewsSection({
 function ETFSection({
   category,
   stocks,
+  charts,
   onNavigate
 }: {
   category: typeof ETF_CATEGORIES[0];
   stocks: StockQuote[];
+  charts: Map<string, StockChartData>;
   onNavigate: (page: string, symbol?: string) => void;
 }) {
   const categoryStocks = stocks.filter(s => {
@@ -122,7 +124,7 @@ function ETFSection({
           <span className="card-title" style={{ color: category.color }}>{category.icon} {category.name}</span>
           <span style={{ fontSize: 10, color: 'var(--text-muted)', animation: 'pulse 1.5s infinite' }}>読み込み中...</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12, padding: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, padding: 16 }}>
           {fallbackIndices.map(idx => (
             <div
               key={idx.symbol}
@@ -133,7 +135,7 @@ function ETFSection({
               <div className="index-symbol" style={{ color: category.color, fontWeight: 600 }}>{idx.symbol}</div>
               <div className="index-name" style={{ fontSize: 11, marginTop: 2 }}>{idx.name}</div>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{idx.description}</div>
-              <div style={{ marginTop: 8, height: 20, background: 'var(--bg-tertiary)', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
+              <div style={{ marginTop: 8, height: 40, background: 'var(--bg-tertiary)', borderRadius: 4, animation: 'pulse 1.5s infinite' }} />
             </div>
           ))}
         </div>
@@ -145,10 +147,13 @@ function ETFSection({
     <div className="card">
       <div className="card-header">
         <span className="card-title" style={{ color: category.color }}>{category.icon} {category.name}</span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>3ヶ月</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12, padding: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, padding: 16 }}>
         {categoryStocks.map(stock => {
           const indexInfo = INDICES.find(i => i.symbol === stock.symbol);
+          const chartData = charts.get(stock.symbol);
+          const isPositive = stock.changePercent >= 0;
           return (
             <div
               key={stock.symbol}
@@ -156,16 +161,44 @@ function ETFSection({
               style={{ cursor: 'pointer' }}
               onClick={() => onNavigate('chart', stock.symbol)}
             >
-              <div className="index-symbol" style={{ color: category.color, fontWeight: 600 }}>{stock.symbol}</div>
-              <div className="index-name" style={{ fontSize: 11, marginTop: 2 }}>{stock.name}</div>
-              <div className="index-value" style={{ marginTop: 8 }}>
-                ${stock.price > 0 ? stock.price.toFixed(2) : '--'}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div className="index-symbol" style={{ color: category.color, fontWeight: 600 }}>{stock.symbol}</div>
+                  <div className="index-name" style={{ fontSize: 10, marginTop: 2, color: 'var(--text-muted)' }}>{stock.name}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>
+                    ${stock.price > 0 ? stock.price.toFixed(2) : '--'}
+                  </div>
+                  <div style={{ marginTop: 2 }}>
+                    {stock.price > 0 ? (
+                      <PriceChange value={stock.change} percent={stock.changePercent} size="sm" />
+                    ) : null}
+                  </div>
+                </div>
               </div>
-              <div className="index-change" style={{ marginTop: 4 }}>
-                {stock.price > 0 ? (
-                  <PriceChange value={stock.change} percent={stock.changePercent} size="sm" />
+              {/* 3ヶ月チャート */}
+              <div style={{ marginTop: 8, height: 40 }}>
+                {chartData && chartData.prices.length > 0 ? (
+                  <MiniChart
+                    data={chartData.prices}
+                    width={160}
+                    height={40}
+                    color={isPositive ? 'var(--green)' : 'var(--red)'}
+                  />
                 ) : (
-                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{indexInfo?.description}</span>
+                  <div style={{
+                    height: 40,
+                    background: 'var(--bg-tertiary)',
+                    borderRadius: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 10,
+                    color: 'var(--text-muted)'
+                  }}>
+                    チャート読み込み中...
+                  </div>
                 )}
               </div>
             </div>
@@ -343,6 +376,7 @@ function UpcomingEarningsCalendar({ earnings }: { earnings: EarningsData[] }) {
 export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
   const [stocks, setStocks] = useState<StockQuote[]>([]);
+  const [charts, setCharts] = useState<Map<string, StockChartData>>(new Map());
   const [news, setNews] = useState<NewsItem[]>([]);
   const [earnings, setEarnings] = useState<EarningsData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -369,6 +403,8 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
         .then(data => {
           setStocks(data);
           setLastUpdated(new Date());
+          // 株価取得後、チャートデータも取得
+          loadChartData(data.map(s => s.symbol));
         })
         .catch(err => console.error('[MarketOverview] Stock error:', err));
 
@@ -380,6 +416,25 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
 
       // 初期ローディングは1秒後に解除
       setTimeout(() => setIsLoading(false), 1000);
+    }
+
+    // 3ヶ月チャートデータを取得
+    async function loadChartData(symbols: string[]) {
+      const chartMap = new Map<string, StockChartData>();
+      // 並列で取得（5銘柄ずつ）
+      for (let i = 0; i < symbols.length; i += 5) {
+        const batch = symbols.slice(i, i + 5);
+        const results = await Promise.allSettled(
+          batch.map(symbol => fetchStockChart(symbol, 90)) // 90日 = 3ヶ月
+        );
+        results.forEach((result, idx) => {
+          if (result.status === 'fulfilled' && result.value.prices.length > 0) {
+            chartMap.set(batch[idx], result.value);
+          }
+        });
+        // 段階的に更新
+        setCharts(new Map(chartMap));
+      }
     }
 
     loadData();
@@ -457,10 +512,10 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
         </div>
       </div>
 
-      {/* テーマ別ETFセクション */}
+      {/* テーマ別ETFセクション（3ヶ月チャート付き） */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 16 }}>
         {ETF_CATEGORIES.map(category => (
-          <ETFSection key={category.id} category={category} stocks={stocks} onNavigate={onNavigate} />
+          <ETFSection key={category.id} category={category} stocks={stocks} charts={charts} onNavigate={onNavigate} />
         ))}
       </div>
 
