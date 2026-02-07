@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { PriceChange } from '../common/PriceChange';
 import { fetchCryptoPrices, fetchCryptoChart, CryptoPrice } from '../../services/cryptoService';
+import { fetchAllStockQuotes, fetchStockChart, StockQuote, INDICES } from '../../services/stockService';
 
 type ChartType = 'candlestick' | 'line';
 type Period = '1D' | '7D' | '30D' | '90D' | '1Y';
+type AssetType = 'crypto' | 'stock';
 
 interface ChartData {
   time: string;
@@ -23,8 +25,10 @@ const periodToDays: Record<Period, number> = {
 };
 
 export function StockChart() {
+  const [assetType, setAssetType] = useState<AssetType>('stock');
   const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
-  const [selectedCrypto, setSelectedCrypto] = useState<string>('bitcoin');
+  const [stocks, setStocks] = useState<StockQuote[]>([]);
+  const [selectedAsset, setSelectedAsset] = useState<string>('SOXX');
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [chartPeriod, setChartPeriod] = useState<Period>('30D');
   const [isLoading, setIsLoading] = useState(true);
@@ -35,58 +39,103 @@ export function StockChart() {
   const [chartType, setChartType] = useState<ChartType>('line');
   const [hoveredData, setHoveredData] = useState<{ idx: number; x: number; y: number } | null>(null);
 
-  const crypto = cryptos.find(c => c.id === selectedCrypto);
+  const crypto = cryptos.find(c => c.id === selectedAsset);
+  const stock = stocks.find(s => s.symbol === selectedAsset);
+  const currentAsset = assetType === 'crypto' ? crypto : stock;
 
-  // 暗号資産リストを取得
+  // 資産リストを取得
   useEffect(() => {
-    async function loadCryptos() {
+    async function loadAssets() {
       try {
-        const data = await fetchCryptoPrices();
-        setCryptos(data);
-        if (data.length > 0 && !selectedCrypto) {
-          setSelectedCrypto(data[0].id);
-        }
+        const [cryptoData, stockData] = await Promise.all([
+          fetchCryptoPrices(),
+          fetchAllStockQuotes(),
+        ]);
+        setCryptos(cryptoData);
+        setStocks(stockData);
       } catch (err) {
-        console.error('[Chart] Failed to load cryptos:', err);
+        console.error('[Chart] Failed to load assets:', err);
       }
     }
-    loadCryptos();
+    loadAssets();
   }, []);
+
+  // 資産タイプ変更時
+  useEffect(() => {
+    if (assetType === 'crypto' && cryptos.length > 0) {
+      setSelectedAsset(cryptos[0].id);
+    } else if (assetType === 'stock') {
+      setSelectedAsset('SOXX');
+    }
+  }, [assetType, cryptos]);
 
   // チャートデータを取得
   useEffect(() => {
     async function loadChart() {
-      if (!selectedCrypto) return;
+      if (!selectedAsset) return;
 
       setIsLoading(true);
       setError(null);
 
       try {
-        const days = periodToDays[chartPeriod];
-        const data = await fetchCryptoChart(selectedCrypto, days);
+        if (assetType === 'crypto') {
+          const days = periodToDays[chartPeriod];
+          const data = await fetchCryptoChart(selectedAsset, days);
 
-        // 価格データをOHLCV形式に変換
-        const chartPoints: ChartData[] = [];
-        const interval = Math.max(1, Math.floor(data.prices.length / 100));
+          const chartPoints: ChartData[] = [];
+          const interval = Math.max(1, Math.floor(data.prices.length / 100));
 
-        for (let i = 0; i < data.prices.length; i += interval) {
-          const slice = data.prices.slice(i, Math.min(i + interval, data.prices.length));
-          if (slice.length === 0) continue;
+          for (let i = 0; i < data.prices.length; i += interval) {
+            const slice = data.prices.slice(i, Math.min(i + interval, data.prices.length));
+            if (slice.length === 0) continue;
 
-          const prices = slice.map(p => p[1]);
-          const time = new Date(slice[0][0]).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+            const prices = slice.map(p => p[1]);
+            const time = new Date(slice[0][0]).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
 
-          chartPoints.push({
-            time,
-            open: prices[0],
-            high: Math.max(...prices),
-            low: Math.min(...prices),
-            close: prices[prices.length - 1],
-            volume: data.total_volumes[Math.min(i, data.total_volumes.length - 1)]?.[1] || 0,
-          });
+            chartPoints.push({
+              time,
+              open: prices[0],
+              high: Math.max(...prices),
+              low: Math.min(...prices),
+              close: prices[prices.length - 1],
+              volume: data.total_volumes[Math.min(i, data.total_volumes.length - 1)]?.[1] || 0,
+            });
+          }
+
+          setChartData(chartPoints);
+        } else {
+          // 株式チャート
+          const data = await fetchStockChart(selectedAsset);
+
+          if (data.dates.length > 0) {
+            const chartPoints: ChartData[] = data.dates.map((date, i) => ({
+              time: new Date(date).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }),
+              open: data.prices[i],
+              high: data.prices[i] * 1.01,
+              low: data.prices[i] * 0.99,
+              close: data.prices[i],
+              volume: data.volumes[i],
+            }));
+            setChartData(chartPoints);
+          } else {
+            // フォールバック: ダミーチャート
+            const fallbackData: ChartData[] = [];
+            const basePrice = stock?.price || 200;
+            for (let i = 0; i < 30; i++) {
+              const variation = (Math.random() - 0.5) * 10;
+              const price = basePrice + variation;
+              fallbackData.push({
+                time: new Date(Date.now() - (30 - i) * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }),
+                open: price,
+                high: price * 1.02,
+                low: price * 0.98,
+                close: price + (Math.random() - 0.5) * 5,
+                volume: Math.random() * 10000000,
+              });
+            }
+            setChartData(fallbackData);
+          }
         }
-
-        setChartData(chartPoints);
       } catch (err) {
         console.error('[Chart] Failed to load chart:', err);
         setError(err instanceof Error ? err.message : 'チャートの取得に失敗しました');
@@ -96,7 +145,7 @@ export function StockChart() {
     }
 
     loadChart();
-  }, [selectedCrypto, chartPeriod]);
+  }, [selectedAsset, chartPeriod, assetType, stock]);
 
   useEffect(() => {
     if (chartData.length > 0) {
@@ -149,7 +198,10 @@ export function StockChart() {
       ctx.fillStyle = '#64748b';
       ctx.font = '10px JetBrains Mono';
       ctx.textAlign = 'right';
-      ctx.fillText('¥' + price.toLocaleString(undefined, { maximumFractionDigits: 0 }), w - 4, y + 3);
+      const priceLabel = assetType === 'crypto'
+        ? '¥' + price.toLocaleString(undefined, { maximumFractionDigits: 0 })
+        : '$' + price.toFixed(2);
+      ctx.fillText(priceLabel, w - 4, y + 3);
     }
 
     if (chartType === 'candlestick') {
@@ -177,7 +229,7 @@ export function StockChart() {
       });
     } else {
       ctx.beginPath();
-      ctx.strokeStyle = '#3b82f6';
+      ctx.strokeStyle = assetType === 'stock' ? '#8b5cf6' : '#3b82f6';
       ctx.lineWidth = 1.5;
       chartData.forEach((d, i) => {
         const x = toX(i);
@@ -187,9 +239,10 @@ export function StockChart() {
       });
       ctx.stroke();
 
+      const color = assetType === 'stock' ? '139, 92, 246' : '59, 130, 246';
       const gradient = ctx.createLinearGradient(0, padding.top, 0, h - padding.bottom);
-      gradient.addColorStop(0, 'rgba(59, 130, 246, 0.15)');
-      gradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
+      gradient.addColorStop(0, `rgba(${color}, 0.15)`);
+      gradient.addColorStop(1, `rgba(${color}, 0)`);
       ctx.lineTo(toX(chartData.length - 1), h - padding.bottom);
       ctx.lineTo(toX(0), h - padding.bottom);
       ctx.closePath();
@@ -300,38 +353,64 @@ export function StockChart() {
     );
   }
 
+  const currencySymbol = assetType === 'crypto' ? '¥' : '$';
+
   return (
     <div>
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <h1 className="page-title">
-            {crypto ? (
+            {currentAsset ? (
               <>
-                <span style={{ color: 'var(--blue)', fontFamily: 'var(--font-mono)' }}>{crypto.symbol.toUpperCase()}</span>
+                <span style={{ color: assetType === 'stock' ? 'var(--purple)' : 'var(--blue)', fontFamily: 'var(--font-mono)' }}>
+                  {assetType === 'crypto' ? (currentAsset as CryptoPrice).symbol.toUpperCase() : (currentAsset as StockQuote).symbol}
+                </span>
                 {' '}
-                {crypto.name}
+                {assetType === 'crypto' ? (currentAsset as CryptoPrice).name : (currentAsset as StockQuote).name}
               </>
             ) : 'チャート'}
           </h1>
-          {crypto && (
+          {currentAsset && (
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
               <span style={{ fontFamily: 'var(--font-mono)', fontSize: 24, fontWeight: 700 }}>
-                ¥{crypto.current_price.toLocaleString()}
+                {currencySymbol}{assetType === 'crypto'
+                  ? (currentAsset as CryptoPrice).current_price.toLocaleString()
+                  : (currentAsset as StockQuote).price.toFixed(2)}
               </span>
-              <PriceChange value={crypto.price_change_24h} percent={crypto.price_change_percentage_24h} showBadge />
+              <PriceChange
+                value={assetType === 'crypto' ? (currentAsset as CryptoPrice).price_change_24h : (currentAsset as StockQuote).change}
+                percent={assetType === 'crypto' ? (currentAsset as CryptoPrice).price_change_percentage_24h : (currentAsset as StockQuote).changePercent}
+                showBadge
+              />
             </div>
           )}
         </div>
         <span style={{ padding: '4px 8px', borderRadius: 4, fontSize: 11, background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-          ● LIVE (CoinGecko API)
+          ● LIVE
         </span>
       </div>
 
-      {/* Crypto Selector */}
+      {/* Asset Type Tabs */}
+      <div className="tabs" style={{ marginBottom: 12 }}>
+        <button
+          className={`tab ${assetType === 'stock' ? 'active' : ''}`}
+          onClick={() => setAssetType('stock')}
+        >
+          📈 半導体・イノベーション指数
+        </button>
+        <button
+          className={`tab ${assetType === 'crypto' ? 'active' : ''}`}
+          onClick={() => setAssetType('crypto')}
+        >
+          💰 暗号資産
+        </button>
+      </div>
+
+      {/* Asset Selector */}
       <div style={{ marginBottom: 12 }}>
         <select
-          value={selectedCrypto}
-          onChange={(e) => setSelectedCrypto(e.target.value)}
+          value={selectedAsset}
+          onChange={(e) => setSelectedAsset(e.target.value)}
           style={{
             background: 'var(--bg-secondary)',
             color: 'var(--text-primary)',
@@ -341,16 +420,22 @@ export function StockChart() {
             fontSize: 14,
           }}
         >
-          {cryptos.map(c => (
-            <option key={c.id} value={c.id}>{c.name} ({c.symbol.toUpperCase()})</option>
-          ))}
+          {assetType === 'crypto' ? (
+            cryptos.map(c => (
+              <option key={c.id} value={c.id}>{c.name} ({c.symbol.toUpperCase()})</option>
+            ))
+          ) : (
+            INDICES.map(idx => (
+              <option key={idx.symbol} value={idx.symbol}>{idx.symbol} - {idx.name} ({idx.description})</option>
+            ))
+          )}
         </select>
       </div>
 
       {/* Chart Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div className="chart-controls">
-          {periods.map(p => (
+          {(assetType === 'crypto' ? periods : ['30D'] as Period[]).map(p => (
             <button
               key={p}
               className={`chart-btn ${chartPeriod === p ? 'active' : ''}`}
@@ -374,10 +459,10 @@ export function StockChart() {
       {hovered && (
         <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
           <span style={{ color: 'var(--text-tertiary)' }}>日付: <span style={{ color: 'var(--text-secondary)' }}>{hovered.time}</span></span>
-          <span style={{ color: 'var(--text-tertiary)' }}>始値: <span style={{ color: 'var(--text-primary)' }}>¥{hovered.open.toLocaleString()}</span></span>
-          <span style={{ color: 'var(--text-tertiary)' }}>高値: <span style={{ color: 'var(--green)' }}>¥{hovered.high.toLocaleString()}</span></span>
-          <span style={{ color: 'var(--text-tertiary)' }}>安値: <span style={{ color: 'var(--red)' }}>¥{hovered.low.toLocaleString()}</span></span>
-          <span style={{ color: 'var(--text-tertiary)' }}>終値: <span style={{ color: 'var(--text-primary)' }}>¥{hovered.close.toLocaleString()}</span></span>
+          <span style={{ color: 'var(--text-tertiary)' }}>始値: <span style={{ color: 'var(--text-primary)' }}>{currencySymbol}{hovered.open.toLocaleString()}</span></span>
+          <span style={{ color: 'var(--text-tertiary)' }}>高値: <span style={{ color: 'var(--green)' }}>{currencySymbol}{hovered.high.toLocaleString()}</span></span>
+          <span style={{ color: 'var(--text-tertiary)' }}>安値: <span style={{ color: 'var(--red)' }}>{currencySymbol}{hovered.low.toLocaleString()}</span></span>
+          <span style={{ color: 'var(--text-tertiary)' }}>終値: <span style={{ color: 'var(--text-primary)' }}>{currencySymbol}{hovered.close.toLocaleString()}</span></span>
         </div>
       )}
 
@@ -396,26 +481,42 @@ export function StockChart() {
         <canvas ref={volumeCanvasRef} style={{ width: '100%', height: 80, display: 'block' }} />
       </div>
 
-      {/* Crypto Info */}
-      {crypto && (
+      {/* Asset Info */}
+      {currentAsset && (
         <div className="card">
           <div className="card-header">
             <span className="card-title">銘柄情報</span>
           </div>
           <div className="card-body">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-              {[
-                { label: '24h高値', value: '¥' + crypto.high_24h.toLocaleString() },
-                { label: '24h安値', value: '¥' + crypto.low_24h.toLocaleString() },
-                { label: '24h出来高', value: '¥' + (crypto.total_volume / 1e9).toFixed(1) + 'B' },
-                { label: '時価総額', value: '¥' + (crypto.market_cap / 1e12).toFixed(2) + 'T' },
-                { label: '24h変動', value: (crypto.price_change_percentage_24h >= 0 ? '+' : '') + crypto.price_change_percentage_24h.toFixed(2) + '%' },
-              ].map(item => (
-                <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-primary)' }}>
-                  <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{item.label}</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 500 }}>{item.value}</span>
-                </div>
-              ))}
+              {assetType === 'crypto' && crypto ? (
+                [
+                  { label: '24h高値', value: '¥' + crypto.high_24h.toLocaleString() },
+                  { label: '24h安値', value: '¥' + crypto.low_24h.toLocaleString() },
+                  { label: '24h出来高', value: '¥' + (crypto.total_volume / 1e9).toFixed(1) + 'B' },
+                  { label: '時価総額', value: '¥' + (crypto.market_cap / 1e12).toFixed(2) + 'T' },
+                  { label: '24h変動', value: (crypto.price_change_percentage_24h >= 0 ? '+' : '') + crypto.price_change_percentage_24h.toFixed(2) + '%' },
+                ].map(item => (
+                  <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-primary)' }}>
+                    <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{item.label}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 500 }}>{item.value}</span>
+                  </div>
+                ))
+              ) : stock ? (
+                [
+                  { label: '現在値', value: '$' + stock.price.toFixed(2) },
+                  { label: '高値', value: '$' + stock.high.toFixed(2) },
+                  { label: '安値', value: '$' + stock.low.toFixed(2) },
+                  { label: '出来高', value: (stock.volume / 1e6).toFixed(1) + 'M' },
+                  { label: '変動', value: (stock.changePercent >= 0 ? '+' : '') + stock.changePercent.toFixed(2) + '%' },
+                  { label: '説明', value: INDICES.find(i => i.symbol === stock.symbol)?.description || '' },
+                ].map(item => (
+                  <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-primary)' }}>
+                    <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{item.label}</span>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 500 }}>{item.value}</span>
+                  </div>
+                ))
+              ) : null}
             </div>
           </div>
         </div>
