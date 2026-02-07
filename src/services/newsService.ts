@@ -16,7 +16,7 @@ const NEWS_API_KEY = import.meta.env.VITE_NEWS_API_KEY || '';
 const FMP_API_KEY = import.meta.env.VITE_FMP_API_KEY || '';
 
 // 専門カテゴリ（このカテゴリのフィードはカテゴリを変更しない）
-const SPECIALIZED_CATEGORIES = ['genai', 'cleanenergy', 'biotech', 'robotics', 'space', 'resources', 'semiconductor', 'arxiv', 'hackernews', 'jetro', 'research'];
+const SPECIALIZED_CATEGORIES = ['genai', 'cleanenergy', 'biotech', 'robotics', 'space', 'resources', 'semiconductor', 'arxiv', 'hackernews'];
 
 // 除外すべきニュース（投資分析と関係ない）
 const EXCLUDED_KEYWORDS = [
@@ -75,17 +75,6 @@ const NEWS_FEEDS = [
   { url: 'https://news.mynavi.jp/rss/techplus', name: 'マイナビTech+', category: 'semiconductor' },
   { url: 'https://www.eenewseurope.com/en/feed/', name: 'eeNews Europe', category: 'semiconductor' },
   { url: 'https://semiengineering.com/feed/', name: 'Semiconductor Engineering', category: 'semiconductor' },
-  // 調査レポート・シンクタンク・テック分析
-  { url: 'https://www.itmedia.co.jp/rss/2.0/enterprise.xml', name: 'ITmedia Enterprise', category: 'research' },
-  { url: 'https://www.itmedia.co.jp/rss/2.0/news.xml', name: 'ITmedia NEWS', category: 'research' },
-  { url: 'https://japan.cnet.com/rss/index.rdf', name: 'CNET Japan', category: 'research' },
-  { url: 'https://ascii.jp/rss.xml', name: 'ASCII.jp', category: 'research' },
-  { url: 'https://www.watch.impress.co.jp/data/rss/1.0/ipw/feed.rdf', name: 'Impress Watch', category: 'research' },
-  { url: 'https://cloud.watch.impress.co.jp/data/rss/1.0/cw/feed.rdf', name: 'クラウドWatch', category: 'research' },
-  { url: 'https://internet.watch.impress.co.jp/data/rss/1.0/iw/feed.rdf', name: 'INTERNET Watch', category: 'research' },
-  // ジェトロ（日本貿易振興機構）- 世界のビジネスニュース
-  { url: 'https://www.jetro.go.jp/biznews/rss/biznewstop20.xml', name: 'ジェトロ ビジネス短信', category: 'jetro' },
-  { url: 'https://www.jetro.go.jp/world/rss/gtir.xml', name: 'ジェトロ 世界貿易投資報告', category: 'jetro' },
   // 生成AI・LLM（専門）
   { url: 'https://www.itmedia.co.jp/rss/2.0/aiplus.xml', name: 'ITmedia AI+', category: 'genai' },
   { url: 'https://ledge.ai/feed/', name: 'Ledge.ai', category: 'genai' },
@@ -300,18 +289,7 @@ async function fetchFromFeed(feedUrl: string, sourceName: string, defaultCategor
   // 不要なニュースをフィルタリング
   const filteredItems = items.filter((item: any) => {
     const title = item.title || '';
-    if (isIrrelevantNews(title)) return false;
-
-    // 調査レポート・ジェトロは1ヶ月以内ならOK（日付がパースできない場合も表示）
-    if (defaultCategory === 'research' || defaultCategory === 'jetro') {
-      if (!item.pubDate) return true; // 日付がない場合は表示
-      const pubDate = new Date(item.pubDate);
-      if (isNaN(pubDate.getTime())) return true; // 無効な日付は表示
-      const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      return pubDate >= oneMonthAgo;
-    }
-
-    return true;
+    return !isIrrelevantNews(title);
   });
 
   return filteredItems.slice(0, 10).map((item: any, index: number) => {
