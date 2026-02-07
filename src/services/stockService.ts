@@ -1,9 +1,9 @@
 // 株式指数・ETFデータサービス
-// Alpha Vantage API（無料、CORS対応）
+// Yahoo Finance API（無料、リアルタイムデータ）via CORSプロキシ
 
-const ALPHA_VANTAGE_API = 'https://www.alphavantage.co/query';
-// 無料APIキー（デモ用、本番では環境変数推奨）
-const API_KEY = 'demo';
+const YAHOO_FINANCE_API = 'https://query1.finance.yahoo.com/v8/finance/chart';
+// CORSプロキシ（ブラウザから直接Yahoo Finance APIにアクセスするため）
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
 export interface StockQuote {
   symbol: string;
@@ -15,6 +15,7 @@ export interface StockQuote {
   low: number;
   volume: number;
   timestamp: string;
+  previousClose: number;
 }
 
 export interface StockChartData {
@@ -75,15 +76,46 @@ function saveToLocalStorage<T>(key: string, symbol: string, data: T) {
   }
 }
 
-// フォールバックデータ
+// フォールバックデータ（API失敗時のみ使用）
 const FALLBACK_QUOTES: Record<string, StockQuote> = {
-  SOXX: { symbol: 'SOXX', name: 'iShares半導体ETF', price: 220.50, change: 3.25, changePercent: 1.5, high: 222.00, low: 218.00, volume: 5000000, timestamp: new Date().toISOString() },
-  ARKK: { symbol: 'ARKK', name: 'ARK Innovation ETF', price: 48.30, change: 0.85, changePercent: 1.79, high: 49.00, low: 47.50, volume: 12000000, timestamp: new Date().toISOString() },
-  SMH: { symbol: 'SMH', name: 'VanEck半導体ETF', price: 245.80, change: 4.20, changePercent: 1.74, high: 247.00, low: 243.00, volume: 8000000, timestamp: new Date().toISOString() },
-  QQQ: { symbol: 'QQQ', name: 'Invesco QQQ', price: 485.20, change: 6.50, changePercent: 1.36, high: 488.00, low: 482.00, volume: 35000000, timestamp: new Date().toISOString() },
+  SOXX: { symbol: 'SOXX', name: 'iShares半導体ETF', price: 220.50, change: 3.25, changePercent: 1.5, high: 222.00, low: 218.00, volume: 5000000, previousClose: 217.25, timestamp: new Date().toISOString() },
+  ARKK: { symbol: 'ARKK', name: 'ARK Innovation ETF', price: 48.30, change: 0.85, changePercent: 1.79, high: 49.00, low: 47.50, volume: 12000000, previousClose: 47.45, timestamp: new Date().toISOString() },
+  SMH: { symbol: 'SMH', name: 'VanEck半導体ETF', price: 245.80, change: 4.20, changePercent: 1.74, high: 247.00, low: 243.00, volume: 8000000, previousClose: 241.60, timestamp: new Date().toISOString() },
+  QQQ: { symbol: 'QQQ', name: 'Invesco QQQ', price: 485.20, change: 6.50, changePercent: 1.36, high: 488.00, low: 482.00, volume: 35000000, previousClose: 478.70, timestamp: new Date().toISOString() },
 };
 
-// 株価を取得
+// リトライ付きfetch
+async function fetchWithRetry(url: string, retries = 3, delay = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        return response;
+      }
+      if (response.status === 429) {
+        console.warn(`[Stock] Rate limited, waiting ${delay * 2}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay * 2));
+        continue;
+      }
+      if (i < retries - 1) {
+        console.warn(`[Stock] Request failed (${response.status}), retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        return response;
+      }
+    } catch (err) {
+      if (i < retries - 1) {
+        console.warn(`[Stock] Network error, retrying in ${delay}ms...`, err);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
+// 株価を取得（Yahoo Finance API）
 export async function fetchStockQuote(symbol: string): Promise<StockQuote> {
   // キャッシュチェック
   const cached = cache.quotes.get(symbol);
@@ -92,61 +124,71 @@ export async function fetchStockQuote(symbol: string): Promise<StockQuote> {
     return cached.data;
   }
 
-  const url = `${ALPHA_VANTAGE_API}?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${API_KEY}`;
+  const yahooUrl = `${YAHOO_FINANCE_API}/${symbol}?interval=1d&range=1d`;
+  const url = `${CORS_PROXY}${encodeURIComponent(yahooUrl)}`;
 
   console.log('[Stock] Fetching quote for', symbol);
 
   try {
-    const response = await fetch(url);
+    const response = await fetchWithRetry(url);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
     const data = await response.json();
+    const result = data.chart?.result?.[0];
 
-    // API制限チェック
-    if (data.Note || data['Error Message']) {
-      throw new Error(data.Note || data['Error Message']);
+    if (!result) {
+      throw new Error('Invalid response from Yahoo Finance');
     }
 
-    const quote = data['Global Quote'];
-    if (!quote || !quote['05. price']) {
-      throw new Error('Invalid response');
-    }
+    const meta = result.meta;
+    const quote = result.indicators?.quote?.[0];
 
-    const result: StockQuote = {
-      symbol: quote['01. symbol'],
+    const price = meta.regularMarketPrice || meta.previousClose;
+    const previousClose = meta.chartPreviousClose || meta.previousClose;
+    const change = price - previousClose;
+    const changePercent = (change / previousClose) * 100;
+
+    const stockQuote: StockQuote = {
+      symbol: meta.symbol,
       name: INDICES.find(i => i.symbol === symbol)?.name || symbol,
-      price: parseFloat(quote['05. price']),
-      change: parseFloat(quote['09. change']),
-      changePercent: parseFloat(quote['10. change percent'].replace('%', '')),
-      high: parseFloat(quote['03. high']),
-      low: parseFloat(quote['04. low']),
-      volume: parseInt(quote['06. volume']),
-      timestamp: quote['07. latest trading day'],
+      price: price,
+      change: change,
+      changePercent: changePercent,
+      high: quote?.high?.[0] || meta.regularMarketDayHigh || price,
+      low: quote?.low?.[0] || meta.regularMarketDayLow || price,
+      volume: meta.regularMarketVolume || quote?.volume?.[0] || 0,
+      previousClose: previousClose,
+      timestamp: new Date(meta.regularMarketTime * 1000).toISOString(),
     };
 
     // キャッシュ更新
-    cache.quotes.set(symbol, { data: result, timestamp: Date.now() });
-    saveToLocalStorage(LS_QUOTES_KEY, symbol, result);
+    cache.quotes.set(symbol, { data: stockQuote, timestamp: Date.now() });
+    saveToLocalStorage(LS_QUOTES_KEY, symbol, stockQuote);
 
-    return result;
+    console.log('[Stock] Fetched', symbol, ':', stockQuote.price);
+
+    return stockQuote;
   } catch (err) {
     console.error('[Stock] Error fetching quote:', err);
 
     // キャッシュがあれば返す
     if (cached) {
+      console.warn('[Stock] Using stale cache for', symbol);
       return cached.data;
     }
 
     // LocalStorageチェック
     const lsCache = loadFromLocalStorage<StockQuote>(LS_QUOTES_KEY);
     if (lsCache && lsCache[symbol]) {
+      console.warn('[Stock] Using localStorage cache for', symbol);
       return lsCache[symbol].data;
     }
 
     // フォールバック
     if (FALLBACK_QUOTES[symbol]) {
+      console.warn('[Stock] Using fallback data for', symbol);
       return FALLBACK_QUOTES[symbol];
     }
 
@@ -166,8 +208,8 @@ export async function fetchAllStockQuotes(): Promise<StockQuote[]> {
 }
 
 // チャートデータを取得
-export async function fetchStockChart(symbol: string, interval: string = 'daily'): Promise<StockChartData> {
-  const cacheKey = `${symbol}-${interval}`;
+export async function fetchStockChart(symbol: string, days: number = 30): Promise<StockChartData> {
+  const cacheKey = `${symbol}-${days}`;
   const cached = cache.charts.get(cacheKey);
 
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -175,43 +217,78 @@ export async function fetchStockChart(symbol: string, interval: string = 'daily'
     return cached.data;
   }
 
-  const func = interval === 'daily' ? 'TIME_SERIES_DAILY' : 'TIME_SERIES_INTRADAY';
-  const url = `${ALPHA_VANTAGE_API}?function=${func}&symbol=${symbol}&apikey=${API_KEY}`;
+  // 期間に応じたrange設定
+  let range = '1mo';
+  let interval = '1d';
+  if (days <= 1) {
+    range = '1d';
+    interval = '5m';
+  } else if (days <= 7) {
+    range = '5d';
+    interval = '15m';
+  } else if (days <= 30) {
+    range = '1mo';
+    interval = '1d';
+  } else if (days <= 90) {
+    range = '3mo';
+    interval = '1d';
+  } else {
+    range = '1y';
+    interval = '1d';
+  }
 
-  console.log('[Stock] Fetching chart for', symbol);
+  const yahooUrl = `${YAHOO_FINANCE_API}/${symbol}?interval=${interval}&range=${range}`;
+  const url = `${CORS_PROXY}${encodeURIComponent(yahooUrl)}`;
+
+  console.log('[Stock] Fetching chart for', symbol, 'range:', range);
 
   try {
-    const response = await fetch(url);
+    const response = await fetchWithRetry(url);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
     const data = await response.json();
+    const result = data.chart?.result?.[0];
 
-    if (data.Note || data['Error Message']) {
-      throw new Error(data.Note || data['Error Message']);
+    if (!result) {
+      throw new Error('Invalid chart data from Yahoo Finance');
     }
 
-    const timeSeries = data['Time Series (Daily)'] || data['Time Series (5min)'];
-    if (!timeSeries) {
-      throw new Error('Invalid chart data');
-    }
+    const timestamps = result.timestamp || [];
+    const quotes = result.indicators?.quote?.[0] || {};
+    const closes = quotes.close || [];
+    const volumes = quotes.volume || [];
 
-    const entries = Object.entries(timeSeries).slice(0, 30).reverse();
-    const result: StockChartData = {
-      dates: entries.map(([date]) => date),
-      prices: entries.map(([, values]: [string, any]) => parseFloat(values['4. close'])),
-      volumes: entries.map(([, values]: [string, any]) => parseInt(values['5. volume'])),
+    const chartData: StockChartData = {
+      dates: timestamps.map((ts: number) => {
+        const date = new Date(ts * 1000);
+        return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+      }),
+      prices: closes.filter((p: number | null) => p !== null),
+      volumes: volumes.filter((v: number | null) => v !== null),
     };
 
-    cache.charts.set(cacheKey, { data: result, timestamp: Date.now() });
+    // キャッシュ更新
+    cache.charts.set(cacheKey, { data: chartData, timestamp: Date.now() });
+    saveToLocalStorage(LS_CHARTS_KEY, cacheKey, chartData);
 
-    return result;
+    console.log('[Stock] Chart data points:', chartData.prices.length);
+
+    return chartData;
   } catch (err) {
     console.error('[Stock] Error fetching chart:', err);
 
     if (cached) {
+      console.warn('[Stock] Using stale chart cache for', symbol);
       return cached.data;
+    }
+
+    // LocalStorageチェック
+    const lsCache = loadFromLocalStorage<StockChartData>(LS_CHARTS_KEY);
+    if (lsCache && lsCache[cacheKey]) {
+      console.warn('[Stock] Using localStorage chart cache for', symbol);
+      return lsCache[cacheKey].data;
     }
 
     // フォールバック: 空のデータ
