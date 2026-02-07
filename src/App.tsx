@@ -7,8 +7,9 @@ import { PortfolioView } from './components/Portfolio/PortfolioView';
 import { WatchlistView } from './components/Watchlist/WatchlistView';
 import { NewsFeed } from './components/News/NewsFeed';
 import { AnalysisView } from './components/Analysis/AnalysisView';
+import { RealEstateView } from './components/RealEstate/RealEstateView';
 
-type Page = 'dashboard' | 'chart' | 'portfolio' | 'watchlist' | 'news' | 'analysis';
+type Page = 'dashboard' | 'chart' | 'portfolio' | 'watchlist' | 'news' | 'analysis' | 'realestate';
 
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
@@ -27,6 +28,8 @@ export default function App() {
         return <NewsFeed onNavigate={(p) => setActivePage(p as Page)} />;
       case 'analysis':
         return <AnalysisView onNavigate={(p) => setActivePage(p as Page)} />;
+      case 'realestate':
+        return <RealEstateView onNavigate={(p) => setActivePage(p as Page)} />;
       default:
         return <MarketOverview onNavigate={(p) => setActivePage(p as Page)} />;
     }

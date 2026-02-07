@@ -14,6 +14,7 @@ const navItems = [
   { id: 'watchlist', icon: '⭐', label: 'ウォッチリスト' },
   { id: 'news', icon: '📰', label: 'ニュース' },
   { id: 'analysis', icon: '🔬', label: '分析ツール' },
+  { id: 'realestate', icon: '🏠', label: '不動産投資' },
 ];
 
 export function Sidebar({ activePage, onNavigate }: SidebarProps) {
