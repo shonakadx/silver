@@ -13,6 +13,34 @@ const FMP_API_KEY = import.meta.env.VITE_FMP_API_KEY || '';
 // 専門カテゴリ（このカテゴリのフィードはカテゴリを変更しない）
 const SPECIALIZED_CATEGORIES = ['genai', 'cleanenergy', 'biotech', 'robotics', 'space', 'resources', 'semiconductor', 'arxiv', 'hackernews'];
 
+// 除外すべきニュース（投資分析と関係ない）
+const EXCLUDED_KEYWORDS = [
+  // スポーツ
+  'スポーツ', 'サッカー', '野球', 'プロ野球', 'mlb', 'nba', 'nfl', 'tennis', 'テニス',
+  'ゴルフ', 'オリンピック', 'ワールドカップ', 'w杯', 'リーグ戦', '試合結果', '優勝',
+  'チャンピオン', 'バスケ', 'ラグビー', '陸上', '水泳', 'マラソン', '駅伝', '相撲',
+  'boxing', 'ボクシング', 'mma', '格闘技', 'ufc', 'f1', 'フォーミュラ',
+  // エンタメ・芸能
+  'エンタメ', '芸能', 'アイドル', 'ジャニーズ', 'akb', '乃木坂', '欅坂', 'k-pop', 'kpop',
+  'bts', 'アニメ', '漫画', 'マンガ', 'ゲーム攻略', 'ドラマ', '映画レビュー', 'バラエティ',
+  'お笑い', 'タレント', '俳優', '女優', '歌手', 'ミュージシャン', 'コンサート', 'ライブ',
+  '紅白', 'グラミー', 'アカデミー賞', 'ゴールデングローブ',
+  // 料理・グルメ（投資と関係ない一般記事）
+  'レシピ', '料理', 'グルメ', 'ランチ', 'ディナー', 'スイーツ', 'カフェ巡り', 'ラーメン',
+  // ファッション・美容
+  'ファッション', 'コーデ', 'メイク', 'コスメ', 'ネイル', 'ヘアスタイル', 'ダイエット',
+  // 占い・心理
+  '占い', '星座', '運勢', '心理テスト',
+  // ゴシップ
+  '結婚', '離婚', '熱愛', '不倫', 'スキャンダル', 'ゴシップ',
+];
+
+// ニュースが投資分析に関係ないかチェック
+function isIrrelevantNews(title: string): boolean {
+  const text = title.toLowerCase();
+  return EXCLUDED_KEYWORDS.some(keyword => text.includes(keyword.toLowerCase()));
+}
+
 // ニュースフィード（暗号資産・経済・企業・イノベーション・半導体・テーマ投資）
 const NEWS_FEEDS = [
   // 暗号資産（主要3銘柄のみ）
@@ -171,7 +199,13 @@ async function fetchFromFeed(feedUrl: string, sourceName: string, defaultCategor
 
   const isSpecializedFeed = SPECIALIZED_CATEGORIES.includes(defaultCategory);
 
-  return data.items.slice(0, 10).map((item: any, index: number) => {
+  // 不要なニュースをフィルタリング
+  const filteredItems = data.items.filter((item: any) => {
+    const title = item.title || '';
+    return !isIrrelevantNews(title);
+  });
+
+  return filteredItems.slice(0, 10).map((item: any, index: number) => {
     let category = defaultCategory;
 
     if (!isSpecializedFeed) {
