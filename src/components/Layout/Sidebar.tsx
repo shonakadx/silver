@@ -1,19 +1,28 @@
 import { useState, useEffect } from 'react';
 import { PriceChange } from '../common/PriceChange';
 import { fetchCryptoPrices, CryptoPrice } from '../../services/cryptoService';
+import {
+  LayoutDashboard,
+  TrendingUp,
+  Briefcase,
+  Star,
+  Newspaper,
+  FlaskConical,
+  LucideIcon
+} from 'lucide-react';
 
 interface SidebarProps {
   activePage: string;
   onNavigate: (page: string) => void;
 }
 
-const navItems = [
-  { id: 'dashboard', icon: '📊', label: 'ダッシュボード' },
-  { id: 'chart', icon: '📈', label: 'チャート' },
-  { id: 'portfolio', icon: '💼', label: 'ポートフォリオ' },
-  { id: 'watchlist', icon: '⭐', label: 'ウォッチリスト' },
-  { id: 'news', icon: '📰', label: 'ニュース' },
-  { id: 'analysis', icon: '🔬', label: '分析ツール' },
+const navItems: { id: string; icon: LucideIcon; label: string }[] = [
+  { id: 'dashboard', icon: LayoutDashboard, label: 'ダッシュボード' },
+  { id: 'chart', icon: TrendingUp, label: 'チャート' },
+  { id: 'portfolio', icon: Briefcase, label: 'ポートフォリオ' },
+  { id: 'watchlist', icon: Star, label: 'ウォッチリスト' },
+  { id: 'news', icon: Newspaper, label: 'ニュース' },
+  { id: 'analysis', icon: FlaskConical, label: '分析ツール' },
 ];
 
 export function Sidebar({ activePage, onNavigate }: SidebarProps) {
@@ -44,7 +53,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
             className={`sidebar-nav-item ${activePage === item.id ? 'active' : ''}`}
             onClick={() => onNavigate(item.id)}
           >
-            <span className="nav-icon">{item.icon}</span>
+            <item.icon size={18} strokeWidth={1.5} className="nav-icon" />
             {item.label}
           </div>
         ))}

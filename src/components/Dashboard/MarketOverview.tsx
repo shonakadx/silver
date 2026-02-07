@@ -4,7 +4,9 @@ import { MiniChart } from '../common/MiniChart';
 import { fetchCryptoPrices, CryptoPrice } from '../../services/cryptoService';
 import { fetchAllStockQuotes, StockQuote, INDICES } from '../../services/stockService';
 import { fetchNews } from '../../services/newsService';
+import { fetchEarningsData, EarningsData, getEarningsByCategory, getUpcomingEarnings } from '../../services/earningsService';
 import { NewsItem } from '../../types/market';
+import { Calendar, TrendingUp, Clock, CheckCircle2 } from 'lucide-react';
 
 interface MarketOverviewProps {
   onNavigate: (page: string, symbol?: string) => void;
@@ -172,10 +174,175 @@ function ETFSection({
   );
 }
 
+// 決算セクションコンポーネント
+function EarningsSection({
+  title,
+  icon,
+  color,
+  earnings,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  color: string;
+  earnings: EarningsData[];
+}) {
+  if (earnings.length === 0) return null;
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+  };
+
+  const formatRevenue = (revenue: number | null) => {
+    if (revenue === null) return '--';
+    if (revenue >= 100) return `$${(revenue / 10).toFixed(0)}B`;
+    return `$${revenue.toFixed(1)}B`;
+  };
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <span className="card-title" style={{ color, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {icon}
+          {title}
+        </span>
+      </div>
+      <div style={{ padding: '0 16px 16px' }}>
+        {earnings.map((item, idx) => (
+          <div
+            key={item.symbol}
+            style={{
+              padding: '12px 0',
+              borderBottom: idx < earnings.length - 1 ? '1px solid var(--border-primary)' : 'none',
+              display: 'grid',
+              gridTemplateColumns: '1fr auto',
+              gap: 12,
+              alignItems: 'center',
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
+                  {item.symbol}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  {item.companyName}
+                </span>
+                {item.status === 'upcoming' ? (
+                  <Clock size={14} style={{ color: 'var(--yellow)' }} />
+                ) : (
+                  <CheckCircle2 size={14} style={{ color: 'var(--green)' }} />
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 16, fontSize: 11, color: 'var(--text-tertiary)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Calendar size={12} />
+                  {formatDate(item.reportDate)}
+                </span>
+                <span>{item.fiscalQuarter}</span>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 12, marginBottom: 2 }}>
+                <span style={{ color: 'var(--text-tertiary)' }}>EPS: </span>
+                {item.status === 'reported' && item.actualEPS !== null ? (
+                  <span style={{
+                    color: item.surprise !== null && item.surprise > 0 ? 'var(--green)' :
+                           item.surprise !== null && item.surprise < 0 ? 'var(--red)' : 'var(--text-primary)',
+                    fontWeight: 500
+                  }}>
+                    ${item.actualEPS.toFixed(2)}
+                    {item.surprise !== null && (
+                      <span style={{ fontSize: 10, marginLeft: 4 }}>
+                        {item.surprise > 0 ? '+' : ''}{item.surprise.toFixed(1)}%
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--text-secondary)' }}>
+                    予想 ${item.estimatedEPS?.toFixed(2) || '--'}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+                売上: {item.status === 'reported' && item.actualRevenue
+                  ? formatRevenue(item.actualRevenue)
+                  : `予想 ${formatRevenue(item.estimatedRevenue)}`}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 今後の決算カレンダーコンポーネント
+function UpcomingEarningsCalendar({ earnings }: { earnings: EarningsData[] }) {
+  const upcoming = getUpcomingEarnings(earnings).slice(0, 8);
+
+  if (upcoming.length === 0) return null;
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' });
+  };
+
+  const getCategoryColor = (category: string) => {
+    const colors: Record<string, string> = {
+      semiconductor: 'var(--purple)',
+      innovation: 'var(--blue)',
+      cleanenergy: 'var(--green)',
+      biotech: 'var(--pink)',
+      space: 'var(--cyan)',
+      resources: 'var(--orange)',
+    };
+    return colors[category] || 'var(--text-secondary)';
+  };
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Calendar size={18} strokeWidth={1.5} style={{ color: 'var(--accent)' }} />
+          決算発表カレンダー
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: 16 }}>
+        {upcoming.map((item) => (
+          <div
+            key={item.symbol}
+            style={{
+              padding: 12,
+              background: 'var(--bg-tertiary)',
+              borderRadius: 8,
+              borderLeft: `3px solid ${getCategoryColor(item.category)}`,
+            }}
+          >
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+              {formatDate(item.reportDate)}
+            </div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>
+              {item.symbol}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+              {item.companyName}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 4 }}>
+              予想EPS: ${item.estimatedEPS?.toFixed(2) || '--'}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
   const [stocks, setStocks] = useState<StockQuote[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [earnings, setEarnings] = useState<EarningsData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -186,16 +353,18 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
       setError(null);
 
       try {
-        const [cryptoData, stockData, newsData] = await Promise.all([
+        const [cryptoData, stockData, newsData, earningsData] = await Promise.all([
           fetchCryptoPrices(),
           fetchAllStockQuotes().catch(() => []),
           fetchNews().catch(() => []),
+          fetchEarningsData().catch(() => []),
         ]);
         setCryptos(cryptoData);
         setStocks(stockData);
         setNews(newsData);
+        setEarnings(earningsData);
         setLastUpdated(new Date());
-        console.log('[MarketOverview] Loaded', cryptoData.length, 'cryptos,', stockData.length, 'stocks,', newsData.length, 'news');
+        console.log('[MarketOverview] Loaded', cryptoData.length, 'cryptos,', stockData.length, 'stocks,', newsData.length, 'news,', earningsData.length, 'earnings');
       } catch (err) {
         console.error('[MarketOverview] Error:', err);
         setError(err instanceof Error ? err.message : 'データの取得に失敗しました');
@@ -283,6 +452,61 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
           <ETFSection key={category.id} category={category} stocks={stocks} onNavigate={onNavigate} />
         ))}
       </div>
+
+      {/* 企業決算セクション */}
+      {earnings.length > 0 && (
+        <>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Calendar size={18} strokeWidth={1.5} />
+            企業決算情報
+          </h2>
+
+          {/* 決算カレンダー */}
+          <div style={{ marginBottom: 16 }}>
+            <UpcomingEarningsCalendar earnings={earnings} />
+          </div>
+
+          {/* 業種別決算 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 16 }}>
+            <EarningsSection
+              title="半導体・テクノロジー"
+              icon={<TrendingUp size={16} strokeWidth={1.5} />}
+              color="var(--purple)"
+              earnings={getEarningsByCategory(earnings, 'semiconductor')}
+            />
+            <EarningsSection
+              title="AI・イノベーション"
+              icon={<TrendingUp size={16} strokeWidth={1.5} />}
+              color="var(--blue)"
+              earnings={getEarningsByCategory(earnings, 'innovation')}
+            />
+            <EarningsSection
+              title="クリーンエネルギー"
+              icon={<TrendingUp size={16} strokeWidth={1.5} />}
+              color="var(--green)"
+              earnings={getEarningsByCategory(earnings, 'cleanenergy')}
+            />
+            <EarningsSection
+              title="バイオテック"
+              icon={<TrendingUp size={16} strokeWidth={1.5} />}
+              color="var(--pink)"
+              earnings={getEarningsByCategory(earnings, 'biotech')}
+            />
+            <EarningsSection
+              title="宇宙開発"
+              icon={<TrendingUp size={16} strokeWidth={1.5} />}
+              color="var(--cyan)"
+              earnings={getEarningsByCategory(earnings, 'space')}
+            />
+            <EarningsSection
+              title="資源・コモディティ"
+              icon={<TrendingUp size={16} strokeWidth={1.5} />}
+              color="var(--orange)"
+              earnings={getEarningsByCategory(earnings, 'resources')}
+            />
+          </div>
+        </>
+      )}
 
       {/* 暗号資産カード（BTC, ETH, XRP） */}
       <div className="card" style={{ marginBottom: 16 }}>
