@@ -2,8 +2,11 @@
 // Yahoo Finance API（無料、リアルタイムデータ）via CORSプロキシ
 
 const YAHOO_FINANCE_API = 'https://query1.finance.yahoo.com/v8/finance/chart';
-// CORSプロキシ（ブラウザから直接Yahoo Finance APIにアクセスするため）
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+// CORSプロキシ（複数用意してフォールバック）
+const CORS_PROXIES = [
+  'https://corsproxy.io/?',
+  'https://api.allorigins.win/raw?url=',
+];
 
 export interface StockQuote {
   symbol: string;
@@ -84,35 +87,33 @@ const FALLBACK_QUOTES: Record<string, StockQuote> = {
   QQQ: { symbol: 'QQQ', name: 'Invesco QQQ', price: 485.20, change: 6.50, changePercent: 1.36, high: 488.00, low: 482.00, volume: 35000000, previousClose: 478.70, timestamp: new Date().toISOString() },
 };
 
-// リトライ付きfetch
-async function fetchWithRetry(url: string, retries = 3, delay = 1000): Promise<Response> {
-  for (let i = 0; i < retries; i++) {
+// 複数プロキシでフェッチ（タイムアウト付き）
+async function fetchWithProxies(yahooUrl: string, timeout = 8000): Promise<Response> {
+  for (const proxy of CORS_PROXIES) {
+    const url = `${proxy}${encodeURIComponent(yahooUrl)}`;
+    console.log('[Stock] Trying proxy:', proxy.slice(0, 30));
+
     try {
-      const response = await fetch(url);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (response.ok) {
+        console.log('[Stock] Success with proxy:', proxy.slice(0, 30));
         return response;
       }
-      if (response.status === 429) {
-        console.warn(`[Stock] Rate limited, waiting ${delay * 2}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay * 2));
-        continue;
-      }
-      if (i < retries - 1) {
-        console.warn(`[Stock] Request failed (${response.status}), retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        return response;
-      }
+      console.warn(`[Stock] Proxy returned ${response.status}, trying next...`);
     } catch (err) {
-      if (i < retries - 1) {
-        console.warn(`[Stock] Network error, retrying in ${delay}ms...`, err);
-        await new Promise(resolve => setTimeout(resolve, delay));
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.warn('[Stock] Proxy timeout, trying next...');
       } else {
-        throw err;
+        console.warn('[Stock] Proxy error:', err);
       }
     }
   }
-  throw new Error('Max retries exceeded');
+  throw new Error('All proxies failed');
 }
 
 // 株価を取得（Yahoo Finance API）
@@ -125,15 +126,11 @@ export async function fetchStockQuote(symbol: string): Promise<StockQuote> {
   }
 
   const yahooUrl = `${YAHOO_FINANCE_API}/${symbol}?interval=1d&range=1d`;
-  const url = `${CORS_PROXY}${encodeURIComponent(yahooUrl)}`;
 
   console.log('[Stock] Fetching quote for', symbol);
 
   try {
-    const response = await fetchWithRetry(url);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    const response = await fetchWithProxies(yahooUrl);
 
     const data = await response.json();
     const result = data.chart?.result?.[0];
@@ -238,15 +235,11 @@ export async function fetchStockChart(symbol: string, days: number = 30): Promis
   }
 
   const yahooUrl = `${YAHOO_FINANCE_API}/${symbol}?interval=${interval}&range=${range}`;
-  const url = `${CORS_PROXY}${encodeURIComponent(yahooUrl)}`;
 
   console.log('[Stock] Fetching chart for', symbol, 'range:', range);
 
   try {
-    const response = await fetchWithRetry(url);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    const response = await fetchWithProxies(yahooUrl);
 
     const data = await response.json();
     const result = data.chart?.result?.[0];
