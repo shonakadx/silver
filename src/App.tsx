@@ -3,12 +3,10 @@ import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { MarketOverview } from './components/Dashboard/MarketOverview';
 import { StockChart } from './components/Chart/StockChart';
-import { PortfolioView } from './components/Portfolio/PortfolioView';
-import { WatchlistView } from './components/Watchlist/WatchlistView';
 import { NewsFeed } from './components/News/NewsFeed';
 import { AnalysisView } from './components/Analysis/AnalysisView';
 
-type Page = 'dashboard' | 'chart' | 'portfolio' | 'watchlist' | 'news' | 'analysis';
+type Page = 'dashboard' | 'chart' | 'news' | 'analysis';
 
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
@@ -27,10 +25,6 @@ export default function App() {
         return <MarketOverview onNavigate={handleNavigate} />;
       case 'chart':
         return <StockChart initialSymbol={selectedSymbol} />;
-      case 'portfolio':
-        return <PortfolioView onNavigate={handleNavigate} />;
-      case 'watchlist':
-        return <WatchlistView onNavigate={handleNavigate} />;
       case 'news':
         return <NewsFeed onNavigate={handleNavigate} />;
       case 'analysis':
