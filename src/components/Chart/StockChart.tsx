@@ -37,7 +37,7 @@ export function StockChart({ initialSymbol }: StockChartProps) {
   const [stocks, setStocks] = useState<StockQuote[]>([]);
   const [selectedAsset, setSelectedAsset] = useState<string>(initialSymbol || 'SOXX');
   const [chartData, setChartData] = useState<ChartData[]>([]);
-  const [chartPeriod, setChartPeriod] = useState<Period>('30D');
+  const [chartPeriod, setChartPeriod] = useState<Period>('1Y');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -125,8 +125,9 @@ export function StockChart({ initialSymbol }: StockChartProps) {
 
           setChartData(chartPoints);
         } else {
-          // 株式チャート
-          const data = await fetchStockChart(selectedAsset);
+          // 株式チャート（選択された期間で取得）
+          const days = periodToDays[chartPeriod];
+          const data = await fetchStockChart(selectedAsset, days);
 
           if (data.dates.length > 0) {
             const chartPoints: ChartData[] = data.dates.map((date, i) => ({
@@ -139,22 +140,9 @@ export function StockChart({ initialSymbol }: StockChartProps) {
             }));
             setChartData(chartPoints);
           } else {
-            // フォールバック: ダミーチャート
-            const fallbackData: ChartData[] = [];
-            const basePrice = stock?.price || 200;
-            for (let i = 0; i < 30; i++) {
-              const variation = (Math.random() - 0.5) * 10;
-              const price = basePrice + variation;
-              fallbackData.push({
-                time: new Date(Date.now() - (30 - i) * 24 * 60 * 60 * 1000).toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }),
-                open: price,
-                high: price * 1.02,
-                low: price * 0.98,
-                close: price + (Math.random() - 0.5) * 5,
-                volume: Math.random() * 10000000,
-              });
-            }
-            setChartData(fallbackData);
+            // データがない場合は空
+            setChartData([]);
+            setError('チャートデータを取得できませんでした');
           }
         }
       } catch (err) {
@@ -462,7 +450,7 @@ export function StockChart({ initialSymbol }: StockChartProps) {
       {/* Chart Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div className="chart-controls">
-          {(assetType === 'crypto' ? periods : ['30D'] as Period[]).map(p => (
+          {periods.map(p => (
             <button
               key={p}
               className={`chart-btn ${chartPeriod === p ? 'active' : ''}`}
