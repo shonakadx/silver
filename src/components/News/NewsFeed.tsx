@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NewsItem } from '../../types/market';
 import { fetchNews } from '../../services/newsService';
 
-type NewsCategory = 'all' | 'market' | 'company' | 'genai' | 'semiconductor' | 'hackernews' | 'arxiv' | 'cleanenergy' | 'biotech' | 'robotics' | 'space' | 'resources' | 'research' | 'innovation';
+type NewsCategory = 'all' | 'market' | 'company' | 'genai' | 'semiconductor' | 'hackernews' | 'arxiv' | 'cleanenergy' | 'biotech' | 'robotics' | 'space' | 'resources' | 'research' | 'innovation' | 'jetro';
 
 interface NewsFeedProps {
   onNavigate: (page: string) => void;
@@ -15,13 +15,14 @@ const categoryLabels: Record<string, string> = {
   genai: '生成AI',
   semiconductor: '半導体',
   hackernews: 'Hacker News',
-  arxiv: 'ArXiv論文',
+  arxiv: 'AI論文',
   cleanenergy: 'クリーンエネルギー',
   biotech: 'バイオテック',
   robotics: 'ロボティクス',
   space: '宇宙開発',
   resources: '資源',
   research: '調査レポート',
+  jetro: 'ジェトロ',
   market: 'マーケット',
   company: '企業',
 };
@@ -81,7 +82,7 @@ export function NewsFeed({ onNavigate, initialCategory }: NewsFeedProps) {
   const categories: NewsCategory[] = [
     'all', 'innovation', 'genai', 'semiconductor', 'hackernews', 'arxiv',
     'cleanenergy', 'biotech', 'robotics', 'space', 'resources',
-    'research', 'market', 'company'
+    'research', 'jetro', 'market', 'company'
   ];
 
   const filtered = activeCategory === 'all'
