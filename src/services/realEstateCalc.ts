@@ -236,15 +236,17 @@ export function runSimulation(property: RealEstateProperty): SimulationResult {
       sellingCosts.otherSellingCosts
     );
 
-    // 購入価格で売却した場合の損益
+    // 購入価格で売却した場合の費用・手残り・損益
     const sellingCostAtPurchasePrice = calcSellingCosts(
       prop.purchasePrice,
       sellingCosts.agentFeeRate,
       sellingCosts.agentFeeFixed,
       sellingCosts.otherSellingCosts
     );
-    const estimatedProfit =
-      prop.purchasePrice - sellingCostAtPurchasePrice - remainingLoan + cumulativeCashFlow;
+    // 手残り = 売却価格 - 売却費用 - ローン残高
+    const netProceeds = prop.purchasePrice - sellingCostAtPurchasePrice - remainingLoan;
+    // 総合損益 = 手残り + 累計CF（初期投資分のマイナスを含む）
+    const estimatedProfit = netProceeds + cumulativeCashFlow;
 
     annualData.push({
       year,
@@ -259,6 +261,8 @@ export function runSimulation(property: RealEstateProperty): SimulationResult {
       totalCashInvested: Math.round(totalCashInvested),
       breakEvenPrice: Math.round(Math.max(0, breakEvenPrice)),
       estimatedProfit: Math.round(estimatedProfit),
+      sellingCostsAmount: Math.round(sellingCostAtPurchasePrice),
+      netProceeds: Math.round(netProceeds),
     });
   }
 

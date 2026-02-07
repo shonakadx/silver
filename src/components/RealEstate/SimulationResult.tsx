@@ -105,19 +105,19 @@ export function SimulationResultView({ result, property }: SimulationResultProps
         )}
         {year5 && (
           <div className="re-summary-card">
-            <div className="re-summary-label">5年目 売却損益</div>
-            <div className={`re-summary-value ${year5.estimatedProfit >= 0 ? 'price-up' : 'price-down'}`}>
-              {year5.estimatedProfit >= 0 ? '+' : ''}
-              {yen(year5.estimatedProfit)}円
+            <div className="re-summary-label">5年目 売却時手残り</div>
+            <div className="re-summary-value">{yen(year5.netProceeds)}円</div>
+            <div className={`re-summary-sub ${year5.estimatedProfit >= 0 ? 'price-up' : 'price-down'}`}>
+              総合損益: {year5.estimatedProfit >= 0 ? '+' : ''}{yen(year5.estimatedProfit)}円
             </div>
           </div>
         )}
         {year10 && (
           <div className="re-summary-card">
-            <div className="re-summary-label">10年目 売却損益</div>
-            <div className={`re-summary-value ${year10.estimatedProfit >= 0 ? 'price-up' : 'price-down'}`}>
-              {year10.estimatedProfit >= 0 ? '+' : ''}
-              {yen(year10.estimatedProfit)}円
+            <div className="re-summary-label">10年目 売却時手残り</div>
+            <div className="re-summary-value">{yen(year10.netProceeds)}円</div>
+            <div className={`re-summary-sub ${year10.estimatedProfit >= 0 ? 'price-up' : 'price-down'}`}>
+              総合損益: {year10.estimatedProfit >= 0 ? '+' : ''}{yen(year10.estimatedProfit)}円
             </div>
           </div>
         )}
@@ -203,7 +203,9 @@ export function SimulationResultView({ result, property }: SimulationResultProps
               <th className="right">累計CF</th>
               <th className="right">ローン残高</th>
               <th className="right">損益分岐点</th>
-              <th className="right">売却損益</th>
+              <th className="right">売却費用</th>
+              <th className="right">手残り</th>
+              <th className="right">総合損益</th>
             </tr>
           </thead>
           <tbody>
@@ -223,6 +225,8 @@ export function SimulationResultView({ result, property }: SimulationResultProps
                 </td>
                 <td className="right">{yen(row.remainingLoan)}</td>
                 <td className="right mono">{yen(row.breakEvenPrice)}</td>
+                <td className="right dim">{yen(row.sellingCostsAmount)}</td>
+                <td className="right" style={{ fontWeight: 600 }}>{yen(row.netProceeds)}</td>
                 <td className={`right ${row.estimatedProfit >= 0 ? 'price-up' : 'price-down'}`}>
                   {row.estimatedProfit >= 0 ? '+' : ''}
                   {yen(row.estimatedProfit)}

@@ -68,6 +68,8 @@ export interface AnnualSimulationRow {
   totalCashInvested: number;   // 累計投資額（自己資金ベース）
   breakEvenPrice: number;      // 損益分岐点価格
   estimatedProfit: number;     // 購入価格で売却した場合の損益
+  sellingCostsAmount: number;  // 売却時費用（購入価格ベース）
+  netProceeds: number;         // 売却時手残り（購入価格ベース）
 }
 
 /** シミュレーション全体の結果 */
