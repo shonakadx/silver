@@ -10,6 +10,28 @@ interface MarketOverviewProps {
   onNavigate: (page: string) => void;
 }
 
+// ETFカテゴリの定義
+const ETF_CATEGORIES = [
+  { id: 'semiconductor', name: '半導体・テクノロジー', icon: '💎', color: 'var(--purple)' },
+  { id: 'innovation', name: 'AI・イノベーション', icon: '🤖', color: 'var(--blue)' },
+  { id: 'cleanenergy', name: 'クリーンエネルギー', icon: '🌱', color: 'var(--green)' },
+  { id: 'biotech', name: 'バイオテック', icon: '🧬', color: 'var(--pink)' },
+  { id: 'space', name: '宇宙開発', icon: '🚀', color: 'var(--cyan)' },
+  { id: 'resources', name: '資源・コモディティ', icon: '⛏️', color: 'var(--orange)' },
+];
+
+// ニュースカテゴリの定義
+const NEWS_CATEGORIES = [
+  { id: 'genai', name: '生成AI・LLM', icon: '🧠', color: 'var(--blue)' },
+  { id: 'semiconductor', name: '半導体・SOX', icon: '💎', color: 'var(--purple)' },
+  { id: 'cleanenergy', name: '脱炭素・エネルギー', icon: '🌱', color: 'var(--green)' },
+  { id: 'biotech', name: '精密医療・バイオ', icon: '🧬', color: 'var(--pink)' },
+  { id: 'robotics', name: 'ロボティクス', icon: '🤖', color: 'var(--cyan)' },
+  { id: 'space', name: '宇宙開発', icon: '🚀', color: 'var(--yellow)' },
+  { id: 'resources', name: '資源・コモディティ', icon: '⛏️', color: 'var(--orange)' },
+  { id: 'research', name: 'Gartner・調査', icon: '📊', color: 'var(--text-secondary)' },
+];
+
 // ニュースセクションコンポーネント
 function NewsSection({
   title,
@@ -68,6 +90,88 @@ function NewsSection({
   );
 }
 
+// ETFセクションコンポーネント
+function ETFSection({
+  category,
+  stocks,
+  onNavigate
+}: {
+  category: typeof ETF_CATEGORIES[0];
+  stocks: StockQuote[];
+  onNavigate: (page: string) => void;
+}) {
+  const categoryStocks = stocks.filter(s => {
+    const idx = INDICES.find(i => i.symbol === s.symbol);
+    return idx?.category === category.id ||
+           (category.id === 'innovation' && (idx?.category === 'ai' || idx?.category === 'robotics' || idx?.category === 'innovation'));
+  });
+
+  if (categoryStocks.length === 0) {
+    // フォールバック: INDICESから該当カテゴリのETFを表示
+    const fallbackIndices = INDICES.filter(i =>
+      i.category === category.id ||
+      (category.id === 'innovation' && (i.category === 'ai' || i.category === 'robotics' || i.category === 'innovation'))
+    );
+    if (fallbackIndices.length === 0) return null;
+
+    return (
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title" style={{ color: category.color }}>{category.icon} {category.name}</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12, padding: 16 }}>
+          {fallbackIndices.map(idx => (
+            <div
+              key={idx.symbol}
+              className="index-card"
+              style={{ cursor: 'pointer' }}
+              onClick={() => onNavigate('chart')}
+            >
+              <div className="index-symbol" style={{ color: category.color, fontWeight: 600 }}>{idx.symbol}</div>
+              <div className="index-name" style={{ fontSize: 11, marginTop: 2 }}>{idx.name}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{idx.description}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <span className="card-title" style={{ color: category.color }}>{category.icon} {category.name}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12, padding: 16 }}>
+        {categoryStocks.map(stock => {
+          const indexInfo = INDICES.find(i => i.symbol === stock.symbol);
+          return (
+            <div
+              key={stock.symbol}
+              className="index-card"
+              style={{ cursor: 'pointer' }}
+              onClick={() => onNavigate('chart')}
+            >
+              <div className="index-symbol" style={{ color: category.color, fontWeight: 600 }}>{stock.symbol}</div>
+              <div className="index-name" style={{ fontSize: 11, marginTop: 2 }}>{stock.name}</div>
+              <div className="index-value" style={{ marginTop: 8 }}>
+                ${stock.price > 0 ? stock.price.toFixed(2) : '--'}
+              </div>
+              <div className="index-change" style={{ marginTop: 4 }}>
+                {stock.price > 0 ? (
+                  <PriceChange value={stock.change} percent={stock.changePercent} size="sm" />
+                ) : (
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{indexInfo?.description}</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
   const [stocks, setStocks] = useState<StockQuote[]>([]);
@@ -106,9 +210,9 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   }, []);
 
   // カテゴリ別ニュース
-  const innovationNews = news.filter(n => n.category === 'innovation').slice(0, 4);
-  const semiconductorNews = news.filter(n => n.category === 'semiconductor').slice(0, 4);
-  const researchNews = news.filter(n => n.category === 'research').slice(0, 4);
+  const getNewsByCategory = (categoryId: string) => {
+    return news.filter(n => n.category === categoryId).slice(0, 3);
+  };
 
   if (isLoading && cryptos.length === 0 && stocks.length === 0) {
     return (
@@ -173,53 +277,11 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
         </div>
       </div>
 
-      {/* 半導体・イノベーション指数 */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header">
-          <span className="card-title">📈 半導体・イノベーション指数</span>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, padding: 16 }}>
-          {(stocks.length > 0 ? stocks : INDICES.map(idx => ({
-            symbol: idx.symbol,
-            name: idx.name,
-            price: 0,
-            change: 0,
-            changePercent: 0,
-            high: 0,
-            low: 0,
-            volume: 0,
-            timestamp: '',
-          }))).map((stock, idx) => {
-            const indexInfo = INDICES.find(i => i.symbol === stock.symbol);
-            return (
-              <div
-                key={stock.symbol}
-                className="index-card"
-                style={{ cursor: 'pointer' }}
-                onClick={() => onNavigate('chart')}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div className="index-symbol" style={{ color: 'var(--blue)', fontWeight: 600 }}>{stock.symbol}</div>
-                    <div className="index-name" style={{ fontSize: 11, marginTop: 2 }}>{stock.name}</div>
-                  </div>
-                  {idx === 0 && <span style={{ fontSize: 10, color: 'var(--purple)' }}>SOX連動</span>}
-                  {idx === 1 && <span style={{ fontSize: 10, color: 'var(--orange)' }}>イノベーション</span>}
-                </div>
-                <div className="index-value" style={{ marginTop: 8 }}>
-                  ${stock.price > 0 ? stock.price.toFixed(2) : '--'}
-                </div>
-                <div className="index-change" style={{ marginTop: 4 }}>
-                  {stock.price > 0 ? (
-                    <PriceChange value={stock.change} percent={stock.changePercent} size="sm" />
-                  ) : (
-                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{indexInfo?.description}</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* テーマ別ETFセクション */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 16 }}>
+        {ETF_CATEGORIES.map(category => (
+          <ETFSection key={category.id} category={category} stocks={stocks} onNavigate={onNavigate} />
+        ))}
       </div>
 
       {/* 暗号資産カード（BTC, ETH, XRP） */}
@@ -250,32 +312,34 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
         </div>
       </div>
 
-      {/* 半導体・SOX / Gartner・調査 */}
-      <div className="grid-2" style={{ marginBottom: 16 }}>
-        <NewsSection
-          title="半導体・SOX"
-          icon="💎"
-          color="var(--purple)"
-          news={semiconductorNews}
-          onNavigate={onNavigate}
-        />
-        <NewsSection
-          title="Gartner・調査レポート"
-          icon="📊"
-          color="var(--orange)"
-          news={researchNews}
-          onNavigate={onNavigate}
-        />
+      {/* テーマ別ニュースセクション */}
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: 'var(--text-secondary)' }}>
+        📰 テーマ別ニュース
+      </h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 16 }}>
+        {NEWS_CATEGORIES.slice(0, 4).map(category => (
+          <NewsSection
+            key={category.id}
+            title={category.name}
+            icon={category.icon}
+            color={category.color}
+            news={getNewsByCategory(category.id)}
+            onNavigate={onNavigate}
+          />
+        ))}
       </div>
-
-      {/* イノベーション */}
-      <NewsSection
-        title="イノベーション・テック"
-        icon="🚀"
-        color="var(--blue)"
-        news={innovationNews}
-        onNavigate={onNavigate}
-      />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+        {NEWS_CATEGORIES.slice(4).map(category => (
+          <NewsSection
+            key={category.id}
+            title={category.name}
+            icon={category.icon}
+            color={category.color}
+            news={getNewsByCategory(category.id)}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </div>
     </div>
   );
 }

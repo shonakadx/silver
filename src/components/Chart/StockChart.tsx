@@ -396,7 +396,7 @@ export function StockChart() {
           className={`tab ${assetType === 'stock' ? 'active' : ''}`}
           onClick={() => setAssetType('stock')}
         >
-          📈 半導体・イノベーション指数
+          📈 テーマ別ETF
         </button>
         <button
           className={`tab ${assetType === 'crypto' ? 'active' : ''}`}

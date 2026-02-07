@@ -27,12 +27,29 @@ export interface StockChartData {
   volumes: number[];
 }
 
-// 主要指数・ETFリスト
+// 主要指数・ETFリスト（テーマ別）
 export const INDICES = [
-  { symbol: 'SOXX', name: 'iShares半導体ETF', description: 'SOX指数連動' },
-  { symbol: 'ARKK', name: 'ARK Innovation ETF', description: '破壊的イノベーション' },
-  { symbol: 'SMH', name: 'VanEck半導体ETF', description: '半導体セクター' },
-  { symbol: 'QQQ', name: 'Invesco QQQ', description: 'NASDAQ100連動' },
+  // 半導体・テクノロジー
+  { symbol: 'SOXX', name: 'iShares半導体ETF', description: 'SOX指数連動', category: 'semiconductor' },
+  { symbol: 'SMH', name: 'VanEck半導体ETF', description: '半導体セクター', category: 'semiconductor' },
+  { symbol: 'QQQ', name: 'Invesco QQQ', description: 'NASDAQ100連動', category: 'tech' },
+  // 生成AI・イノベーション
+  { symbol: 'ARKK', name: 'ARK Innovation ETF', description: '破壊的イノベーション', category: 'innovation' },
+  { symbol: 'BOTZ', name: 'Global X ロボット&AI ETF', description: 'AI・ロボティクス', category: 'ai' },
+  { symbol: 'ROBO', name: 'ROBO Global ロボティクスETF', description: 'ロボット・自動化', category: 'robotics' },
+  // クリーンエネルギー・脱炭素
+  { symbol: 'ICLN', name: 'iSharesクリーンエネルギーETF', description: '再生可能エネルギー', category: 'cleanenergy' },
+  { symbol: 'TAN', name: 'Invesco 太陽光ETF', description: 'ソーラーエネルギー', category: 'cleanenergy' },
+  { symbol: 'LIT', name: 'Global X リチウム&バッテリーETF', description: 'EV・蓄電池', category: 'cleanenergy' },
+  // バイオテック・精密医療
+  { symbol: 'ARKG', name: 'ARK Genomic Revolution ETF', description: 'ゲノム革命', category: 'biotech' },
+  { symbol: 'XBI', name: 'SPDRバイオテックETF', description: 'バイオテクノロジー', category: 'biotech' },
+  // 宇宙開発
+  { symbol: 'ARKX', name: 'ARK Space Exploration ETF', description: '宇宙探査', category: 'space' },
+  { symbol: 'UFO', name: 'Procure Space ETF', description: '宇宙産業', category: 'space' },
+  // 資源・コモディティ
+  { symbol: 'XLE', name: 'Energy Select Sector ETF', description: 'エネルギーセクター', category: 'resources' },
+  { symbol: 'GDX', name: 'VanEck 金鉱株ETF', description: '金鉱企業', category: 'resources' },
 ];
 
 // キャッシュ
@@ -81,10 +98,27 @@ function saveToLocalStorage<T>(key: string, symbol: string, data: T) {
 
 // フォールバックデータ（API失敗時のみ使用）
 const FALLBACK_QUOTES: Record<string, StockQuote> = {
+  // 半導体・テクノロジー
   SOXX: { symbol: 'SOXX', name: 'iShares半導体ETF', price: 220.50, change: 3.25, changePercent: 1.5, high: 222.00, low: 218.00, volume: 5000000, previousClose: 217.25, timestamp: new Date().toISOString() },
-  ARKK: { symbol: 'ARKK', name: 'ARK Innovation ETF', price: 48.30, change: 0.85, changePercent: 1.79, high: 49.00, low: 47.50, volume: 12000000, previousClose: 47.45, timestamp: new Date().toISOString() },
   SMH: { symbol: 'SMH', name: 'VanEck半導体ETF', price: 245.80, change: 4.20, changePercent: 1.74, high: 247.00, low: 243.00, volume: 8000000, previousClose: 241.60, timestamp: new Date().toISOString() },
   QQQ: { symbol: 'QQQ', name: 'Invesco QQQ', price: 485.20, change: 6.50, changePercent: 1.36, high: 488.00, low: 482.00, volume: 35000000, previousClose: 478.70, timestamp: new Date().toISOString() },
+  // 生成AI・イノベーション
+  ARKK: { symbol: 'ARKK', name: 'ARK Innovation ETF', price: 48.30, change: 0.85, changePercent: 1.79, high: 49.00, low: 47.50, volume: 12000000, previousClose: 47.45, timestamp: new Date().toISOString() },
+  BOTZ: { symbol: 'BOTZ', name: 'Global X ロボット&AI ETF', price: 32.50, change: 0.45, changePercent: 1.40, high: 33.00, low: 32.10, volume: 1500000, previousClose: 32.05, timestamp: new Date().toISOString() },
+  ROBO: { symbol: 'ROBO', name: 'ROBO Global ロボティクスETF', price: 52.80, change: 0.72, changePercent: 1.38, high: 53.20, low: 52.30, volume: 800000, previousClose: 52.08, timestamp: new Date().toISOString() },
+  // クリーンエネルギー
+  ICLN: { symbol: 'ICLN', name: 'iSharesクリーンエネルギーETF', price: 14.20, change: 0.18, changePercent: 1.28, high: 14.40, low: 14.05, volume: 3500000, previousClose: 14.02, timestamp: new Date().toISOString() },
+  TAN: { symbol: 'TAN', name: 'Invesco 太陽光ETF', price: 42.50, change: 0.65, changePercent: 1.55, high: 43.00, low: 42.10, volume: 2000000, previousClose: 41.85, timestamp: new Date().toISOString() },
+  LIT: { symbol: 'LIT', name: 'Global X リチウム&バッテリーETF', price: 45.30, change: 0.58, changePercent: 1.30, high: 45.80, low: 44.90, volume: 1800000, previousClose: 44.72, timestamp: new Date().toISOString() },
+  // バイオテック
+  ARKG: { symbol: 'ARKG', name: 'ARK Genomic Revolution ETF', price: 28.40, change: 0.42, changePercent: 1.50, high: 28.80, low: 28.10, volume: 2500000, previousClose: 27.98, timestamp: new Date().toISOString() },
+  XBI: { symbol: 'XBI', name: 'SPDRバイオテックETF', price: 88.50, change: 1.20, changePercent: 1.37, high: 89.20, low: 87.80, volume: 6000000, previousClose: 87.30, timestamp: new Date().toISOString() },
+  // 宇宙開発
+  ARKX: { symbol: 'ARKX', name: 'ARK Space Exploration ETF', price: 14.80, change: 0.22, changePercent: 1.51, high: 15.00, low: 14.60, volume: 1200000, previousClose: 14.58, timestamp: new Date().toISOString() },
+  UFO: { symbol: 'UFO', name: 'Procure Space ETF', price: 18.20, change: 0.28, changePercent: 1.56, high: 18.50, low: 18.00, volume: 400000, previousClose: 17.92, timestamp: new Date().toISOString() },
+  // 資源
+  XLE: { symbol: 'XLE', name: 'Energy Select Sector ETF', price: 92.40, change: 1.35, changePercent: 1.48, high: 93.20, low: 91.50, volume: 15000000, previousClose: 91.05, timestamp: new Date().toISOString() },
+  GDX: { symbol: 'GDX', name: 'VanEck 金鉱株ETF', price: 32.80, change: 0.48, changePercent: 1.48, high: 33.20, low: 32.50, volume: 25000000, previousClose: 32.32, timestamp: new Date().toISOString() },
 };
 
 // 複数プロキシでフェッチ（タイムアウト付き）
