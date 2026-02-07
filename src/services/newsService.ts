@@ -3,7 +3,11 @@ import { NewsItem } from '../types/market';
 
 // API設定
 const RSS2JSON_API = 'https://api.rss2json.com/v1/api.json';
-const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+const CORS_PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.io/?',
+  'https://api.codetabs.com/v1/proxy?quest=',
+];
 const HACKER_NEWS_API = 'https://hacker-news.firebaseio.com/v0';
 const ARXIV_API = 'https://export.arxiv.org/api/query';
 
@@ -71,27 +75,17 @@ const NEWS_FEEDS = [
   { url: 'https://news.mynavi.jp/rss/techplus', name: 'マイナビTech+', category: 'semiconductor' },
   { url: 'https://www.eenewseurope.com/en/feed/', name: 'eeNews Europe', category: 'semiconductor' },
   { url: 'https://semiengineering.com/feed/', name: 'Semiconductor Engineering', category: 'semiconductor' },
-  // 調査レポート・省庁・シンクタンク
+  // 調査レポート・シンクタンク・テック分析
   { url: 'https://www.itmedia.co.jp/rss/2.0/enterprise.xml', name: 'ITmedia Enterprise', category: 'research' },
-  { url: 'https://japan.zdnet.com/feed/index.rdf', name: 'ZDNet Japan', category: 'research' },
-  // IPA（情報処理推進機構）
-  { url: 'https://www.ipa.go.jp/about/rss.rdf', name: 'IPA', category: 'research' },
-  // 統計局
-  { url: 'https://www.stat.go.jp/info/rss/whatsnew.xml', name: '統計局', category: 'research' },
-  // 国立研究開発法人 産業技術総合研究所（AIST）
-  { url: 'https://www.aist.go.jp/rss/aist_all.rdf', name: '産総研', category: 'research' },
-  // 日経xTECH
-  { url: 'https://xtech.nikkei.com/rss/xtech.rdf', name: '日経xTECH', category: 'research' },
-  // 三菱総研
-  { url: 'https://www.mri.co.jp/rss/index.rdf', name: '三菱総研', category: 'research' },
-  // 大和総研
-  { url: 'https://www.dir.co.jp/report/rss/index.xml', name: '大和総研', category: 'research' },
-  // ジェトロ（日本貿易振興機構）ビジネス短信
-  { url: 'https://www.jetro.go.jp/biznews/rss/biznewstop.xml', name: 'ジェトロ ビジネス短信', category: 'jetro' },
-  { url: 'https://www.jetro.go.jp/biznews/rss/biznews_asia.xml', name: 'ジェトロ アジア', category: 'jetro' },
-  { url: 'https://www.jetro.go.jp/biznews/rss/biznews_n_america.xml', name: 'ジェトロ 北米', category: 'jetro' },
-  { url: 'https://www.jetro.go.jp/biznews/rss/biznews_europe.xml', name: 'ジェトロ 欧州', category: 'jetro' },
-  { url: 'https://www.jetro.go.jp/biznews/rss/biznews_china.xml', name: 'ジェトロ 中国', category: 'jetro' },
+  { url: 'https://www.itmedia.co.jp/rss/2.0/news.xml', name: 'ITmedia NEWS', category: 'research' },
+  { url: 'https://japan.cnet.com/rss/index.rdf', name: 'CNET Japan', category: 'research' },
+  { url: 'https://ascii.jp/rss.xml', name: 'ASCII.jp', category: 'research' },
+  { url: 'https://www.watch.impress.co.jp/data/rss/1.0/ipw/feed.rdf', name: 'Impress Watch', category: 'research' },
+  { url: 'https://cloud.watch.impress.co.jp/data/rss/1.0/cw/feed.rdf', name: 'クラウドWatch', category: 'research' },
+  { url: 'https://internet.watch.impress.co.jp/data/rss/1.0/iw/feed.rdf', name: 'INTERNET Watch', category: 'research' },
+  // ジェトロ（日本貿易振興機構）- 世界のビジネスニュース
+  { url: 'https://www.jetro.go.jp/biznews/rss/biznewstop20.xml', name: 'ジェトロ ビジネス短信', category: 'jetro' },
+  { url: 'https://www.jetro.go.jp/world/rss/gtir.xml', name: 'ジェトロ 世界貿易投資報告', category: 'jetro' },
   // 生成AI・LLM（専門）
   { url: 'https://www.itmedia.co.jp/rss/2.0/aiplus.xml', name: 'ITmedia AI+', category: 'genai' },
   { url: 'https://ledge.ai/feed/', name: 'Ledge.ai', category: 'genai' },
@@ -243,14 +237,25 @@ function parseRSSXml(xmlText: string): any[] {
   return results;
 }
 
-// CORSプロキシ経由でRSSを取得
+// CORSプロキシ経由でRSSを取得（複数のプロキシを順番に試す）
 async function fetchRSSWithProxy(feedUrl: string): Promise<any[]> {
-  const proxyUrl = `${CORS_PROXY}${encodeURIComponent(feedUrl)}`;
-  const response = await fetch(proxyUrl);
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const proxyUrl = `${proxy}${encodeURIComponent(feedUrl)}`;
+      const response = await fetch(proxyUrl, { signal: AbortSignal.timeout(5000) });
+      if (!response.ok) continue;
 
-  const xmlText = await response.text();
-  return parseRSSXml(xmlText);
+      const xmlText = await response.text();
+      const items = parseRSSXml(xmlText);
+      if (items.length > 0) {
+        return items;
+      }
+    } catch (e) {
+      // このプロキシは失敗、次を試す
+      continue;
+    }
+  }
+  return [];
 }
 
 // RSSフィードからニュースを取得
@@ -260,11 +265,12 @@ async function fetchFromFeed(feedUrl: string, sourceName: string, defaultCategor
   // まずRSS2JSONを試す
   try {
     const url = `${RSS2JSON_API}?rss_url=${encodeURIComponent(feedUrl)}`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (response.ok) {
       const data = await response.json();
-      if (data.status === 'ok' && data.items) {
+      if (data.status === 'ok' && data.items && data.items.length > 0) {
         items = data.items;
+        console.log(`[News] ${sourceName}: Got ${items.length} items via RSS2JSON`);
       }
     }
   } catch (e) {
@@ -275,13 +281,16 @@ async function fetchFromFeed(feedUrl: string, sourceName: string, defaultCategor
   if (items.length === 0) {
     try {
       items = await fetchRSSWithProxy(feedUrl);
+      if (items.length > 0) {
+        console.log(`[News] ${sourceName}: Got ${items.length} items via CORS proxy`);
+      }
     } catch (e) {
-      console.warn(`[News] Failed to fetch ${sourceName}:`, e);
-      return [];
+      // プロキシも失敗
     }
   }
 
   if (items.length === 0) {
+    console.warn(`[News] ${sourceName}: No items found`);
     return [];
   }
 
