@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NewsItem } from '../../types/market';
 import { fetchNews } from '../../services/newsService';
 
-type NewsCategory = 'all' | 'market' | 'economy' | 'company' | 'crypto' | 'genai' | 'semiconductor' | 'hackernews' | 'arxiv' | 'cleanenergy' | 'biotech' | 'robotics' | 'space' | 'resources' | 'research' | 'innovation';
+type NewsCategory = 'all' | 'market' | 'company' | 'genai' | 'semiconductor' | 'hackernews' | 'arxiv' | 'cleanenergy' | 'biotech' | 'robotics' | 'space' | 'resources' | 'research' | 'innovation';
 
 interface NewsFeedProps {
   onNavigate: (page: string) => void;
@@ -11,20 +11,19 @@ interface NewsFeedProps {
 
 const categoryLabels: Record<string, string> = {
   all: 'すべて',
-  market: 'マーケット',
+  innovation: 'イノベーション',
   genai: '生成AI',
   semiconductor: '半導体',
   hackernews: 'Hacker News',
   arxiv: 'ArXiv論文',
-  cleanenergy: '脱炭素・エネルギー',
-  biotech: 'バイオ',
+  cleanenergy: 'クリーンエネルギー',
+  biotech: 'バイオテック',
   robotics: 'ロボティクス',
   space: '宇宙開発',
   resources: '資源',
-  research: '調査',
+  research: '調査レポート',
+  market: 'マーケット',
   company: '企業',
-  crypto: '暗号資産',
-  innovation: 'イノベーション',
 };
 
 function formatTimeAgo(timestamp: string): string {
@@ -80,9 +79,9 @@ export function NewsFeed({ onNavigate, initialCategory }: NewsFeedProps) {
   }, []);
 
   const categories: NewsCategory[] = [
-    'all', 'genai', 'semiconductor', 'hackernews', 'arxiv',
+    'all', 'innovation', 'genai', 'semiconductor', 'hackernews', 'arxiv',
     'cleanenergy', 'biotech', 'robotics', 'space', 'resources',
-    'research', 'market', 'company', 'crypto'
+    'research', 'market', 'company'
   ];
 
   const filtered = activeCategory === 'all'

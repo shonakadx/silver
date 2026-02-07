@@ -41,31 +41,35 @@ function isIrrelevantNews(title: string): boolean {
   return EXCLUDED_KEYWORDS.some(keyword => text.includes(keyword.toLowerCase()));
 }
 
-// ニュースフィード（暗号資産・経済・企業・イノベーション・半導体・テーマ投資）
+// ニュースフィード（イノベーション・テクノロジー特化）
 const NEWS_FEEDS = [
-  // 暗号資産（主要3銘柄のみ）
-  { url: 'https://cointelegraph.com/rss', name: 'Cointelegraph', category: 'crypto' },
-  { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', name: 'CoinDesk', category: 'crypto' },
-  // 経済・マーケット
-  { url: 'https://feeds.bloomberg.com/markets/news.rss', name: 'Bloomberg', category: 'market' },
-  { url: 'https://www.reutersagency.com/feed/?best-topics=business-finance&post_type=best', name: 'Reuters', category: 'economy' },
-  { url: 'https://assets.wor.jp/rss/rdf/nikkei/news.rdf', name: '日経新聞', category: 'economy' },
-  // 企業ニュース
-  { url: 'https://www.businessinsider.jp/feed/index.xml', name: 'Business Insider JP', category: 'company' },
-  { url: 'https://jp.techcrunch.com/feed/', name: 'TechCrunch Japan', category: 'company' },
-  { url: 'https://toyokeizai.net/list/feed/rss', name: '東洋経済', category: 'company' },
-  { url: 'https://diamond.jp/list/feed/rss', name: 'ダイヤモンド', category: 'company' },
-  // イノベーション・テクノロジー（汎用）
+  // === グローバルテック・イノベーション ===
+  { url: 'https://techcrunch.com/feed/', name: 'TechCrunch', category: 'innovation' },
+  { url: 'https://feeds.arstechnica.com/arstechnica/technology-lab', name: 'Ars Technica', category: 'innovation' },
+  { url: 'https://www.theverge.com/rss/index.xml', name: 'The Verge', category: 'innovation' },
+  { url: 'https://venturebeat.com/feed/', name: 'VentureBeat', category: 'innovation' },
+  { url: 'https://spectrum.ieee.org/feeds/feed.rss', name: 'IEEE Spectrum', category: 'innovation' },
+  { url: 'https://news.mit.edu/rss/topic/artificial-intelligence2', name: 'MIT News AI', category: 'genai' },
+  { url: 'https://www.sciencedaily.com/rss/computers_math/artificial_intelligence.xml', name: 'ScienceDaily AI', category: 'genai' },
+  // 日本語テック
+  { url: 'https://jp.techcrunch.com/feed/', name: 'TechCrunch Japan', category: 'innovation' },
   { url: 'https://wired.jp/feed/', name: 'WIRED Japan', category: 'innovation' },
   { url: 'https://www.technologyreview.jp/feed/', name: 'MIT Tech Review JP', category: 'innovation' },
   { url: 'https://thebridge.jp/feed', name: 'THE BRIDGE', category: 'innovation' },
   { url: 'https://gigazine.net/news/rss_2.0/', name: 'GIGAZINE', category: 'innovation' },
+  // 経済・マーケット（イノベーション投資視点）
+  { url: 'https://feeds.bloomberg.com/technology/news.rss', name: 'Bloomberg Tech', category: 'market' },
+  { url: 'https://www.reutersagency.com/feed/?best-topics=tech&post_type=best', name: 'Reuters Tech', category: 'market' },
+  // 企業ニュース
+  { url: 'https://www.businessinsider.jp/feed/index.xml', name: 'Business Insider JP', category: 'company' },
+  { url: 'https://toyokeizai.net/list/feed/rss', name: '東洋経済', category: 'company' },
   // 半導体・SOX関連（専門メディア）
   { url: 'https://www.digitimes.com/rss/daily.xml', name: 'DIGITIMES', category: 'semiconductor' },
   { url: 'https://eetimes.jp/ee/rss/index.rdf', name: 'EE Times Japan', category: 'semiconductor' },
   { url: 'https://pc.watch.impress.co.jp/data/rss/1.0/pcw/feed.rdf', name: 'PC Watch', category: 'semiconductor' },
   { url: 'https://news.mynavi.jp/rss/techplus', name: 'マイナビTech+', category: 'semiconductor' },
   { url: 'https://www.eenewseurope.com/en/feed/', name: 'eeNews Europe', category: 'semiconductor' },
+  { url: 'https://semiengineering.com/feed/', name: 'Semiconductor Engineering', category: 'semiconductor' },
   // Gartner・調査レポート関連
   { url: 'https://www.itmedia.co.jp/rss/2.0/enterprise.xml', name: 'ITmedia Enterprise', category: 'research' },
   { url: 'https://japan.zdnet.com/feed/index.rdf', name: 'ZDNet Japan', category: 'research' },
@@ -73,11 +77,13 @@ const NEWS_FEEDS = [
   { url: 'https://www.itmedia.co.jp/rss/2.0/aiplus.xml', name: 'ITmedia AI+', category: 'genai' },
   { url: 'https://ledge.ai/feed/', name: 'Ledge.ai', category: 'genai' },
   { url: 'https://ainow.ai/feed/', name: 'AINOW', category: 'genai' },
+  { url: 'https://the-decoder.com/feed/', name: 'The Decoder', category: 'genai' },
   // 脱炭素・クリーンエネルギー（専門）
   { url: 'https://www.renewable-ei.org/activities/feed/', name: '自然エネルギー財団', category: 'cleanenergy' },
   { url: 'https://www.kankyo-business.jp/news/rss.php', name: '環境ビジネスオンライン', category: 'cleanenergy' },
   { url: 'https://solarjournal.jp/feed/', name: 'SOLAR JOURNAL', category: 'cleanenergy' },
   { url: 'https://www.enecho.meti.go.jp/rss/rss.xml', name: '資源エネルギー庁', category: 'cleanenergy' },
+  { url: 'https://electrek.co/feed/', name: 'Electrek', category: 'cleanenergy' },
   // 資源・コモディティ（専門）
   { url: 'https://oilgas-info.jogmec.go.jp/rss.xml', name: 'JOGMEC石油・天然ガス', category: 'resources' },
   { url: 'https://mric.jogmec.go.jp/rss.xml', name: 'JOGMEC金属資源', category: 'resources' },
@@ -85,14 +91,19 @@ const NEWS_FEEDS = [
   { url: 'https://bio.nikkeibp.co.jp/rss/index.rdf', name: '日経バイオテク', category: 'biotech' },
   { url: 'https://www.qlifepro.com/feed/', name: 'QLifePro', category: 'biotech' },
   { url: 'https://medical.nikkeibp.co.jp/all/rss/index.rdf', name: '日経メディカル', category: 'biotech' },
+  { url: 'https://www.fiercebiotech.com/rss.xml', name: 'FierceBiotech', category: 'biotech' },
   // ロボティクス・自動化（専門）
   { url: 'https://robot.watch.impress.co.jp/data/rss/1.0/robot/feed.rdf', name: 'Robot Watch', category: 'robotics' },
   { url: 'https://monoist.itmedia.co.jp/mn/rss/2.0/mn.xml', name: 'MONOist', category: 'robotics' },
   { url: 'https://www.automation-news.jp/feed/', name: 'オートメーション新聞', category: 'robotics' },
+  { url: 'https://www.therobotreport.com/feed/', name: 'The Robot Report', category: 'robotics' },
   // 宇宙開発（専門）
   { url: 'https://sorae.info/feed/', name: 'sorae宇宙へのポータルサイト', category: 'space' },
   { url: 'https://news.mynavi.jp/rss/space', name: 'マイナビ宇宙', category: 'space' },
   { url: 'https://spacenews.com/feed/', name: 'SpaceNews', category: 'space' },
+  { url: 'https://www.nasaspaceflight.com/feed/', name: 'NASASpaceFlight', category: 'space' },
+  // 量子コンピューティング
+  { url: 'https://thequantuminsider.com/feed/', name: 'The Quantum Insider', category: 'innovation' },
 ];
 
 // センチメント判定
