@@ -99,7 +99,7 @@ function saveToLocalStorage<T>(key: string, symbol: string, data: T) {
 // ダミーデータは使用しない - 実データのみ表示
 
 // 複数プロキシでフェッチ（タイムアウト付き）
-async function fetchWithProxies(yahooUrl: string, timeout = 5000): Promise<Response> {
+async function fetchWithProxies(yahooUrl: string, timeout = 3000): Promise<Response> {
   for (const proxy of CORS_PROXIES) {
     const url = `${proxy}${encodeURIComponent(yahooUrl)}`;
     console.log('[Stock] Trying proxy:', proxy.slice(0, 30));
