@@ -12,23 +12,31 @@ type Page = 'dashboard' | 'chart' | 'portfolio' | 'watchlist' | 'news' | 'analys
 
 export default function App() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+
+  const handleNavigate = (page: string, symbol?: string) => {
+    setActivePage(page as Page);
+    if (symbol) {
+      setSelectedSymbol(symbol);
+    }
+  };
 
   const renderPage = () => {
     switch (activePage) {
       case 'dashboard':
-        return <MarketOverview onNavigate={(p) => setActivePage(p as Page)} />;
+        return <MarketOverview onNavigate={handleNavigate} />;
       case 'chart':
-        return <StockChart />;
+        return <StockChart initialSymbol={selectedSymbol} />;
       case 'portfolio':
-        return <PortfolioView onNavigate={(p) => setActivePage(p as Page)} />;
+        return <PortfolioView onNavigate={handleNavigate} />;
       case 'watchlist':
-        return <WatchlistView onNavigate={(p) => setActivePage(p as Page)} />;
+        return <WatchlistView onNavigate={handleNavigate} />;
       case 'news':
-        return <NewsFeed onNavigate={(p) => setActivePage(p as Page)} />;
+        return <NewsFeed onNavigate={handleNavigate} />;
       case 'analysis':
-        return <AnalysisView onNavigate={(p) => setActivePage(p as Page)} />;
+        return <AnalysisView onNavigate={handleNavigate} />;
       default:
-        return <MarketOverview onNavigate={(p) => setActivePage(p as Page)} />;
+        return <MarketOverview onNavigate={handleNavigate} />;
     }
   };
 
@@ -36,7 +44,7 @@ export default function App() {
     <div className="app">
       <Header />
       <div className="app-body">
-        <Sidebar activePage={activePage} onNavigate={(p) => setActivePage(p as Page)} />
+        <Sidebar activePage={activePage} onNavigate={handleNavigate} />
         <main className="main-content">
           {renderPage()}
         </main>

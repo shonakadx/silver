@@ -24,11 +24,18 @@ const periodToDays: Record<Period, number> = {
   '1Y': 365,
 };
 
-export function StockChart() {
-  const [assetType, setAssetType] = useState<AssetType>('stock');
+interface StockChartProps {
+  initialSymbol?: string | null;
+}
+
+export function StockChart({ initialSymbol }: StockChartProps) {
+  // 初期シンボルから資産タイプを判定
+  const initialAssetType: AssetType = initialSymbol && ['bitcoin', 'ethereum', 'ripple'].includes(initialSymbol) ? 'crypto' : 'stock';
+
+  const [assetType, setAssetType] = useState<AssetType>(initialAssetType);
   const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
   const [stocks, setStocks] = useState<StockQuote[]>([]);
-  const [selectedAsset, setSelectedAsset] = useState<string>('SOXX');
+  const [selectedAsset, setSelectedAsset] = useState<string>(initialSymbol || 'SOXX');
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [chartPeriod, setChartPeriod] = useState<Period>('30D');
   const [isLoading, setIsLoading] = useState(true);
@@ -42,6 +49,15 @@ export function StockChart() {
   const crypto = cryptos.find(c => c.id === selectedAsset);
   const stock = stocks.find(s => s.symbol === selectedAsset);
   const currentAsset = assetType === 'crypto' ? crypto : stock;
+
+  // initialSymbol変更時に更新
+  useEffect(() => {
+    if (initialSymbol) {
+      const isCrypto = ['bitcoin', 'ethereum', 'ripple'].includes(initialSymbol);
+      setAssetType(isCrypto ? 'crypto' : 'stock');
+      setSelectedAsset(initialSymbol);
+    }
+  }, [initialSymbol]);
 
   // 資産リストを取得
   useEffect(() => {
