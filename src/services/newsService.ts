@@ -11,7 +11,7 @@ const NEWS_API_KEY = import.meta.env.VITE_NEWS_API_KEY || '';
 const FMP_API_KEY = import.meta.env.VITE_FMP_API_KEY || '';
 
 // 専門カテゴリ（このカテゴリのフィードはカテゴリを変更しない）
-const SPECIALIZED_CATEGORIES = ['genai', 'cleanenergy', 'biotech', 'robotics', 'space', 'resources', 'semiconductor', 'arxiv', 'hackernews'];
+const SPECIALIZED_CATEGORIES = ['genai', 'cleanenergy', 'biotech', 'robotics', 'space', 'resources', 'semiconductor', 'arxiv', 'hackernews', 'jetro', 'research'];
 
 // 除外すべきニュース（投資分析と関係ない）
 const EXCLUDED_KEYWORDS = [
@@ -95,6 +95,12 @@ const NEWS_FEEDS = [
   { url: 'https://www.nri.com/jp/rss/news.xml', name: '野村総研', category: 'research' },
   // みずほリサーチ
   { url: 'https://www.mizuho-rt.co.jp/rss/index.xml', name: 'みずほリサーチ', category: 'research' },
+  // ジェトロ（日本貿易振興機構）ビジネス短信
+  { url: 'https://www.jetro.go.jp/biznews/rss/biznewstop.xml', name: 'ジェトロ ビジネス短信', category: 'jetro' },
+  { url: 'https://www.jetro.go.jp/biznews/rss/biznews_asia.xml', name: 'ジェトロ アジア', category: 'jetro' },
+  { url: 'https://www.jetro.go.jp/biznews/rss/biznews_n_america.xml', name: 'ジェトロ 北米', category: 'jetro' },
+  { url: 'https://www.jetro.go.jp/biznews/rss/biznews_europe.xml', name: 'ジェトロ 欧州', category: 'jetro' },
+  { url: 'https://www.jetro.go.jp/biznews/rss/biznews_middle_east.xml', name: 'ジェトロ 中東', category: 'jetro' },
   // 生成AI・LLM（専門）
   { url: 'https://www.itmedia.co.jp/rss/2.0/aiplus.xml', name: 'ITmedia AI+', category: 'genai' },
   { url: 'https://ledge.ai/feed/', name: 'Ledge.ai', category: 'genai' },
@@ -231,11 +237,21 @@ async function fetchFromFeed(feedUrl: string, sourceName: string, defaultCategor
   }
 
   const isSpecializedFeed = SPECIALIZED_CATEGORIES.includes(defaultCategory);
+  const now = new Date();
 
   // 不要なニュースをフィルタリング
   const filteredItems = data.items.filter((item: any) => {
     const title = item.title || '';
-    return !isIrrelevantNews(title);
+    if (isIrrelevantNews(title)) return false;
+
+    // 調査レポート・ジェトロは1ヶ月以内ならOK
+    if (defaultCategory === 'research' || defaultCategory === 'jetro') {
+      const pubDate = new Date(item.pubDate);
+      const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return pubDate >= oneMonthAgo;
+    }
+
+    return true;
   });
 
   return filteredItems.slice(0, 10).map((item: any, index: number) => {
@@ -370,6 +386,43 @@ async function fetchArxivPapers(): Promise<NewsItem[]> {
     return papers;
   } catch (error) {
     console.warn('[News] ArXiv failed:', error);
+    // ArXivが失敗した場合はPapers With Codeにフォールバック
+    return fetchPapersWithCode();
+  }
+}
+
+// ========== Papers With Code API (AI/ML論文) ==========
+async function fetchPapersWithCode(): Promise<NewsItem[]> {
+  console.log('[News] Fetching from Papers With Code...');
+
+  try {
+    // Papers With Code APIからトレンディングペーパーを取得
+    const url = 'https://paperswithcode.com/api/v1/papers/?ordering=-published&items_per_page=15';
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const data = await response.json();
+
+    if (!data.results || !Array.isArray(data.results)) {
+      throw new Error('Invalid Papers With Code response');
+    }
+
+    const papers: NewsItem[] = data.results.slice(0, 10).map((paper: any, index: number) => ({
+      id: `pwc-${Date.now()}-${index}`,
+      title: paper.title || 'No title',
+      summary: paper.abstract?.substring(0, 200) + '...' || '',
+      source: 'Papers With Code',
+      timestamp: paper.published || new Date().toISOString(),
+      category: 'arxiv',
+      sentiment: 'neutral' as const,
+      url: paper.url_pdf || paper.url_abs || `https://paperswithcode.com/paper/${paper.id}`,
+    }));
+
+    console.log(`[News] Papers With Code: ${papers.length} papers`);
+    return papers;
+  } catch (error) {
+    console.warn('[News] Papers With Code failed:', error);
     return [];
   }
 }
