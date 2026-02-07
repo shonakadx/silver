@@ -24,11 +24,18 @@ const periodToDays: Record<Period, number> = {
   '1Y': 365,
 };
 
-export function StockChart() {
-  const [assetType, setAssetType] = useState<AssetType>('stock');
+interface StockChartProps {
+  initialSymbol?: string | null;
+}
+
+export function StockChart({ initialSymbol }: StockChartProps) {
+  // 初期シンボルから資産タイプを判定
+  const initialAssetType: AssetType = initialSymbol && ['bitcoin', 'ethereum', 'ripple'].includes(initialSymbol) ? 'crypto' : 'stock';
+
+  const [assetType, setAssetType] = useState<AssetType>(initialAssetType);
   const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
   const [stocks, setStocks] = useState<StockQuote[]>([]);
-  const [selectedAsset, setSelectedAsset] = useState<string>('SOXX');
+  const [selectedAsset, setSelectedAsset] = useState<string>(initialSymbol || 'SOXX');
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [chartPeriod, setChartPeriod] = useState<Period>('30D');
   const [isLoading, setIsLoading] = useState(true);
@@ -38,10 +45,21 @@ export function StockChart() {
   const volumeCanvasRef = useRef<HTMLCanvasElement>(null);
   const [chartType, setChartType] = useState<ChartType>('line');
   const [hoveredData, setHoveredData] = useState<{ idx: number; x: number; y: number } | null>(null);
+  const [userSwitchedAssetType, setUserSwitchedAssetType] = useState(false);
 
   const crypto = cryptos.find(c => c.id === selectedAsset);
   const stock = stocks.find(s => s.symbol === selectedAsset);
   const currentAsset = assetType === 'crypto' ? crypto : stock;
+
+  // initialSymbol変更時に更新
+  useEffect(() => {
+    if (initialSymbol) {
+      const isCrypto = ['bitcoin', 'ethereum', 'ripple'].includes(initialSymbol);
+      setUserSwitchedAssetType(false); // ダッシュボードからの遷移なのでフラグをリセット
+      setAssetType(isCrypto ? 'crypto' : 'stock');
+      setSelectedAsset(initialSymbol);
+    }
+  }, [initialSymbol]);
 
   // 資産リストを取得
   useEffect(() => {
@@ -60,14 +78,17 @@ export function StockChart() {
     loadAssets();
   }, []);
 
-  // 資産タイプ変更時
+  // 資産タイプ変更時（ユーザーがタブを切り替えた時のみ）
+  // initialSymbolがある場合は上書きしない
   useEffect(() => {
+    if (!userSwitchedAssetType) return;
+
     if (assetType === 'crypto' && cryptos.length > 0) {
       setSelectedAsset(cryptos[0].id);
     } else if (assetType === 'stock') {
       setSelectedAsset('SOXX');
     }
-  }, [assetType, cryptos]);
+  }, [assetType, cryptos, userSwitchedAssetType]);
 
   // チャートデータを取得
   useEffect(() => {
@@ -394,13 +415,19 @@ export function StockChart() {
       <div className="tabs" style={{ marginBottom: 12 }}>
         <button
           className={`tab ${assetType === 'stock' ? 'active' : ''}`}
-          onClick={() => setAssetType('stock')}
+          onClick={() => {
+            setUserSwitchedAssetType(true);
+            setAssetType('stock');
+          }}
         >
           📈 テーマ別ETF
         </button>
         <button
           className={`tab ${assetType === 'crypto' ? 'active' : ''}`}
-          onClick={() => setAssetType('crypto')}
+          onClick={() => {
+            setUserSwitchedAssetType(true);
+            setAssetType('crypto');
+          }}
         >
           💰 暗号資産
         </button>

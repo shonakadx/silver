@@ -7,7 +7,7 @@ import { fetchNews } from '../../services/newsService';
 import { NewsItem } from '../../types/market';
 
 interface MarketOverviewProps {
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, symbol?: string) => void;
 }
 
 // ETFカテゴリの定義
@@ -98,7 +98,7 @@ function ETFSection({
 }: {
   category: typeof ETF_CATEGORIES[0];
   stocks: StockQuote[];
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, symbol?: string) => void;
 }) {
   const categoryStocks = stocks.filter(s => {
     const idx = INDICES.find(i => i.symbol === s.symbol);
@@ -125,7 +125,7 @@ function ETFSection({
               key={idx.symbol}
               className="index-card"
               style={{ cursor: 'pointer' }}
-              onClick={() => onNavigate('chart')}
+              onClick={() => onNavigate('chart', idx.symbol)}
             >
               <div className="index-symbol" style={{ color: category.color, fontWeight: 600 }}>{idx.symbol}</div>
               <div className="index-name" style={{ fontSize: 11, marginTop: 2 }}>{idx.name}</div>
@@ -150,7 +150,7 @@ function ETFSection({
               key={stock.symbol}
               className="index-card"
               style={{ cursor: 'pointer' }}
-              onClick={() => onNavigate('chart')}
+              onClick={() => onNavigate('chart', stock.symbol)}
             >
               <div className="index-symbol" style={{ color: category.color, fontWeight: 600 }}>{stock.symbol}</div>
               <div className="index-name" style={{ fontSize: 11, marginTop: 2 }}>{stock.name}</div>
@@ -291,7 +291,7 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
         </div>
         <div className="grid-3" style={{ padding: 16 }}>
           {cryptos.map(crypto => (
-            <div key={crypto.id} className="index-card" onClick={() => onNavigate('chart')} style={{ cursor: 'pointer' }}>
+            <div key={crypto.id} className="index-card" onClick={() => onNavigate('chart', crypto.id)} style={{ cursor: 'pointer' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div className="index-name">{crypto.name}</div>
