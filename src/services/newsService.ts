@@ -73,34 +73,24 @@ const NEWS_FEEDS = [
   // 調査レポート・省庁・シンクタンク
   { url: 'https://www.itmedia.co.jp/rss/2.0/enterprise.xml', name: 'ITmedia Enterprise', category: 'research' },
   { url: 'https://japan.zdnet.com/feed/index.rdf', name: 'ZDNet Japan', category: 'research' },
-  // 経済産業省
-  { url: 'https://www.meti.go.jp/rss/index.rdf', name: '経済産業省', category: 'research' },
-  // 総務省
-  { url: 'https://www.soumu.go.jp/rss/menu_news.xml', name: '総務省', category: 'research' },
-  // 内閣府
-  { url: 'https://www.cao.go.jp/rss/index.xml', name: '内閣府', category: 'research' },
-  // 日本銀行
-  { url: 'https://www.boj.or.jp/rss/whatsnew.xml', name: '日本銀行', category: 'research' },
-  // 財務省
-  { url: 'https://www.mof.go.jp/rss/index.xml', name: '財務省', category: 'research' },
-  // 特許庁
-  { url: 'https://www.jpo.go.jp/rss/index.rdf', name: '特許庁', category: 'research' },
-  // 科学技術振興機構（JST）
-  { url: 'https://www.jst.go.jp/rss/whatsnew.xml', name: 'JST科学技術振興機構', category: 'research' },
-  // NEDO（新エネルギー・産業技術総合開発機構）
-  { url: 'https://www.nedo.go.jp/rss/news.xml', name: 'NEDO', category: 'research' },
-  // 日本総研
-  { url: 'https://www.jri.co.jp/rss/report.xml', name: '日本総研', category: 'research' },
-  // 野村総研
-  { url: 'https://www.nri.com/jp/rss/news.xml', name: '野村総研', category: 'research' },
-  // みずほリサーチ
-  { url: 'https://www.mizuho-rt.co.jp/rss/index.xml', name: 'みずほリサーチ', category: 'research' },
+  // IPA（情報処理推進機構）
+  { url: 'https://www.ipa.go.jp/about/rss.rdf', name: 'IPA', category: 'research' },
+  // 統計局
+  { url: 'https://www.stat.go.jp/info/rss/whatsnew.xml', name: '統計局', category: 'research' },
+  // 国立研究開発法人 産業技術総合研究所（AIST）
+  { url: 'https://www.aist.go.jp/rss/aist_all.rdf', name: '産総研', category: 'research' },
+  // 日経xTECH
+  { url: 'https://xtech.nikkei.com/rss/xtech.rdf', name: '日経xTECH', category: 'research' },
+  // 三菱総研
+  { url: 'https://www.mri.co.jp/rss/index.rdf', name: '三菱総研', category: 'research' },
+  // 大和総研
+  { url: 'https://www.dir.co.jp/report/rss/index.xml', name: '大和総研', category: 'research' },
   // ジェトロ（日本貿易振興機構）ビジネス短信
   { url: 'https://www.jetro.go.jp/biznews/rss/biznewstop.xml', name: 'ジェトロ ビジネス短信', category: 'jetro' },
   { url: 'https://www.jetro.go.jp/biznews/rss/biznews_asia.xml', name: 'ジェトロ アジア', category: 'jetro' },
   { url: 'https://www.jetro.go.jp/biznews/rss/biznews_n_america.xml', name: 'ジェトロ 北米', category: 'jetro' },
   { url: 'https://www.jetro.go.jp/biznews/rss/biznews_europe.xml', name: 'ジェトロ 欧州', category: 'jetro' },
-  { url: 'https://www.jetro.go.jp/biznews/rss/biznews_middle_east.xml', name: 'ジェトロ 中東', category: 'jetro' },
+  { url: 'https://www.jetro.go.jp/biznews/rss/biznews_china.xml', name: 'ジェトロ 中国', category: 'jetro' },
   // 生成AI・LLM（専門）
   { url: 'https://www.itmedia.co.jp/rss/2.0/aiplus.xml', name: 'ITmedia AI+', category: 'genai' },
   { url: 'https://ledge.ai/feed/', name: 'Ledge.ai', category: 'genai' },
@@ -244,9 +234,11 @@ async function fetchFromFeed(feedUrl: string, sourceName: string, defaultCategor
     const title = item.title || '';
     if (isIrrelevantNews(title)) return false;
 
-    // 調査レポート・ジェトロは1ヶ月以内ならOK
+    // 調査レポート・ジェトロは1ヶ月以内ならOK（日付がパースできない場合も表示）
     if (defaultCategory === 'research' || defaultCategory === 'jetro') {
+      if (!item.pubDate) return true; // 日付がない場合は表示
       const pubDate = new Date(item.pubDate);
+      if (isNaN(pubDate.getTime())) return true; // 無効な日付は表示
       const oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       return pubDate >= oneMonthAgo;
     }
