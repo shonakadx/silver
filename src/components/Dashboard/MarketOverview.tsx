@@ -5,8 +5,15 @@ import { fetchCryptoPrices, CryptoPrice } from '../../services/cryptoService';
 import { fetchAllStockQuotes, fetchStockChart, getAllCachedCharts, StockQuote, StockChartData, INDICES } from '../../services/stockService';
 import { fetchNews } from '../../services/newsService';
 import { fetchEarningsData, EarningsData, getEarningsByCategory, getUpcomingEarnings } from '../../services/earningsService';
+import {
+  fetchSectorPerformance,
+  fetchInnovationStockQuotes,
+  isFMPAvailable,
+  SectorPerformance,
+  StockQuote as FMPStockQuote,
+} from '../../services/fmpService';
 import { NewsItem } from '../../types/market';
-import { Calendar, TrendingUp, Clock, CheckCircle2 } from 'lucide-react';
+import { Calendar, TrendingUp, Clock, CheckCircle2, BarChart3 } from 'lucide-react';
 
 interface MarketOverviewProps {
   onNavigate: (page: string, symbol?: string) => void;
@@ -377,12 +384,137 @@ function UpcomingEarningsCalendar({ earnings }: { earnings: EarningsData[] }) {
   );
 }
 
+// セクターパフォーマンスコンポーネント
+function SectorPerformanceSection({ sectors }: { sectors: SectorPerformance[] }) {
+  if (sectors.length === 0) return null;
+
+  // イノベーション関連セクターをハイライト
+  const innovationSectors = ['Technology', 'Healthcare', 'Communication Services', 'Consumer Cyclical', 'Industrials'];
+
+  const getSectorIcon = (sector: string) => {
+    const icons: Record<string, string> = {
+      'Technology': '💻',
+      'Healthcare': '🏥',
+      'Communication Services': '📡',
+      'Consumer Cyclical': '🛍️',
+      'Industrials': '🏭',
+      'Energy': '⚡',
+      'Basic Materials': '⛏️',
+      'Financial Services': '🏦',
+      'Utilities': '💡',
+      'Real Estate': '🏢',
+      'Consumer Defensive': '🛒',
+    };
+    return icons[sector] || '📊';
+  };
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <BarChart3 size={18} strokeWidth={1.5} style={{ color: 'var(--accent)' }} />
+          セクター別パフォーマンス
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>本日</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, padding: 16 }}>
+        {sectors.slice(0, 9).map((sector) => {
+          const change = parseFloat(sector.changesPercentage);
+          const isInnovation = innovationSectors.includes(sector.sector);
+          return (
+            <div
+              key={sector.sector}
+              style={{
+                padding: '10px 12px',
+                background: isInnovation ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                borderRadius: 8,
+                border: isInnovation ? '1px solid var(--border-secondary)' : 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <span style={{ fontSize: 14 }}>{getSectorIcon(sector.sector)}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>
+                  {sector.sector}
+                </span>
+              </div>
+              <div style={{
+                fontSize: 15,
+                fontWeight: 600,
+                fontFamily: 'var(--font-mono)',
+                color: change >= 0 ? 'var(--green)' : 'var(--red)',
+              }}>
+                {change >= 0 ? '+' : ''}{change.toFixed(2)}%
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// イノベーション銘柄動向コンポーネント
+function InnovationStocksSection({ quotes }: { quotes: FMPStockQuote[] }) {
+  if (quotes.length === 0) return null;
+
+  // 変動率でソート（上昇・下落）
+  const sorted = [...quotes].sort((a, b) => Math.abs(b.changesPercentage) - Math.abs(a.changesPercentage));
+  const topMovers = sorted.slice(0, 12);
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <TrendingUp size={18} strokeWidth={1.5} style={{ color: 'var(--accent)' }} />
+          イノベーション銘柄の動向
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>本日の値動き</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, padding: 16 }}>
+        {topMovers.map((stock) => (
+          <div
+            key={stock.symbol}
+            style={{
+              padding: '10px 12px',
+              background: 'var(--bg-tertiary)',
+              borderRadius: 8,
+              borderLeft: `3px solid ${stock.changesPercentage >= 0 ? 'var(--green)' : 'var(--red)'}`,
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>
+                {stock.symbol}
+              </span>
+              <span style={{
+                fontSize: 12,
+                fontWeight: 600,
+                fontFamily: 'var(--font-mono)',
+                color: stock.changesPercentage >= 0 ? 'var(--green)' : 'var(--red)',
+              }}>
+                {stock.changesPercentage >= 0 ? '+' : ''}{stock.changesPercentage.toFixed(2)}%
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {stock.name}
+            </div>
+            <div style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+              ${stock.price.toFixed(2)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MarketOverview({ onNavigate }: MarketOverviewProps) {
   const [cryptos, setCryptos] = useState<CryptoPrice[]>([]);
   const [stocks, setStocks] = useState<StockQuote[]>([]);
   const [charts, setCharts] = useState<Map<string, StockChartData>>(new Map());
   const [news, setNews] = useState<NewsItem[]>([]);
   const [earnings, setEarnings] = useState<EarningsData[]>([]);
+  const [sectorPerformance, setSectorPerformance] = useState<SectorPerformance[]>([]);
+  const [innovationQuotes, setInnovationQuotes] = useState<FMPStockQuote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -424,6 +556,17 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
           setNews(data);
         })
         .catch(err => console.error('[MarketOverview] News error:', err));
+
+      // FMP API データ取得（APIキーがある場合のみ）
+      if (isFMPAvailable()) {
+        fetchSectorPerformance()
+          .then(data => setSectorPerformance(data))
+          .catch(err => console.error('[MarketOverview] Sector performance error:', err));
+
+        fetchInnovationStockQuotes()
+          .then(data => setInnovationQuotes(data))
+          .catch(err => console.error('[MarketOverview] Innovation quotes error:', err));
+      }
 
       // 初期ローディングは500msで解除（キャッシュがあるので早く）
       setTimeout(() => setIsLoading(false), 500);
@@ -581,6 +724,20 @@ export function MarketOverview({ onNavigate }: MarketOverviewProps) {
               color="var(--orange)"
               earnings={getEarningsByCategory(earnings, 'resources')}
             />
+          </div>
+        </>
+      )}
+
+      {/* FMP セクターパフォーマンス & イノベーション銘柄動向 */}
+      {(sectorPerformance.length > 0 || innovationQuotes.length > 0) && (
+        <>
+          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BarChart3 size={18} strokeWidth={1.5} />
+            マーケット分析
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 16 }}>
+            <SectorPerformanceSection sectors={sectorPerformance} />
+            <InnovationStocksSection quotes={innovationQuotes} />
           </div>
         </>
       )}
